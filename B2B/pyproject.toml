@@ -11,6 +11,7 @@ dependencies = [
     "drf-spectacular>=0.29.0",
     "gunicorn>=26.0.0",
     "psycopg[binary]>=3.3.4",
+    "pyjwt>=2.12.1",
     "python-dotenv>=1.2.2",
     "uvicorn>=0.46.0",
 ]

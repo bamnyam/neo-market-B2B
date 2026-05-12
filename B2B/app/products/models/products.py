@@ -1,5 +1,3 @@
-from pyclbr import Class
-
 from django.db import models
 
 from app.categories.models.categories import Category
@@ -17,7 +15,7 @@ class Product(models.Model):
     title = models.CharField(max_length=255)
     description = models.TextField()
     status = models.CharField(
-        max_length=50, choices=ProductStatus.choices, default=ProductStatus.DRAFT
+        max_length=50, choices=ProductStatus.choices, default=ProductStatus.CREATED
     )
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
