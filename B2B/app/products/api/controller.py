@@ -4,7 +4,10 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from app.common.authentication import SellerJWTAuthentication
-from app.products.api.serializers import ProductCreateSerializer, ProductResponseSerializer
+from app.products.api.serializers import (
+    ProductCreateSerializer,
+    ProductResponseSerializer,
+)
 
 
 class ProductsController(APIView):

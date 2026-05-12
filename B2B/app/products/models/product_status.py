@@ -2,9 +2,8 @@ from django.db import models
 
 
 class ProductStatus(models.TextChoices):
-    CREATED = "created", "Created"
-    DRAFT = "draft", "Draft"
-    MODERATION = "moderation", "Moderation"
-    APPROVED = "approved", "Approved"
-    REJECTED = "rejected", "Rejected"
-    ARCHIVED = "archived", "Archived"
+    CREATED = "CREATED", "Created"
+    MODERATION = "MODERATION", "Moderation"
+    APPROVED = "APPROVED", "Approved"
+    REJECTED = "REJECTED", "Rejected"
+    ARCHIVED = "ARCHIVED", "Archived"

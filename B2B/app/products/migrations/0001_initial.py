@@ -5,56 +5,160 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     initial = True
 
     dependencies = [
-        ('categories', '0001_initial'),
-        ('sellers', '0001_initial'),
+        ("categories", "0001_initial"),
+        ("sellers", "0001_initial"),
     ]
 
     operations = [
         migrations.CreateModel(
-            name='Product',
+            name="Product",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('title', models.CharField(max_length=255)),
-                ('description', models.TextField()),
-                ('status', models.CharField(choices=[('created', 'Created'), ('draft', 'Draft'), ('moderation', 'Moderation'), ('approved', 'Approved'), ('rejected', 'Rejected'), ('archived', 'Archived')], default='draft', max_length=50)),
-                ('created_at', models.DateTimeField(auto_now_add=True)),
-                ('updated_at', models.DateTimeField(auto_now=True)),
-                ('category', models.ForeignKey(on_delete=django.db.models.deletion.PROTECT, related_name='products', to='categories.category')),
-                ('seller', models.ForeignKey(on_delete=django.db.models.deletion.PROTECT, related_name='products', to='sellers.seller')),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                ("title", models.CharField(max_length=255)),
+                ("description", models.TextField()),
+                (
+                    "status",
+                    models.CharField(
+                        choices=[
+                            ("created", "Created"),
+                            ("draft", "Draft"),
+                            ("moderation", "Moderation"),
+                            ("approved", "Approved"),
+                            ("rejected", "Rejected"),
+                            ("archived", "Archived"),
+                        ],
+                        default="draft",
+                        max_length=50,
+                    ),
+                ),
+                ("created_at", models.DateTimeField(auto_now_add=True)),
+                ("updated_at", models.DateTimeField(auto_now=True)),
+                (
+                    "category",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.PROTECT,
+                        related_name="products",
+                        to="categories.category",
+                    ),
+                ),
+                (
+                    "seller",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.PROTECT,
+                        related_name="products",
+                        to="sellers.seller",
+                    ),
+                ),
             ],
         ),
         migrations.CreateModel(
-            name='ProductCharacteristics',
+            name="ProductCharacteristics",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('name', models.CharField(max_length=255)),
-                ('value', models.CharField(max_length=255)),
-                ('product', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='products.product')),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                ("name", models.CharField(max_length=255)),
+                ("value", models.CharField(max_length=255)),
+                (
+                    "product",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        to="products.product",
+                    ),
+                ),
             ],
         ),
         migrations.CreateModel(
-            name='ProductImages',
+            name="ProductImages",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('url', models.URLField(max_length=255)),
-                ('ordering', models.PositiveBigIntegerField()),
-                ('product', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, to='products.product')),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                ("url", models.URLField(max_length=255)),
+                ("ordering", models.PositiveBigIntegerField()),
+                (
+                    "product",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        to="products.product",
+                    ),
+                ),
             ],
         ),
         migrations.CreateModel(
-            name='ProductStatusHistory',
+            name="ProductStatusHistory",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('status_from', models.CharField(choices=[('created', 'Created'), ('draft', 'Draft'), ('moderation', 'Moderation'), ('approved', 'Approved'), ('rejected', 'Rejected'), ('archived', 'Archived')], max_length=50)),
-                ('status_to', models.CharField(choices=[('created', 'Created'), ('draft', 'Draft'), ('moderation', 'Moderation'), ('approved', 'Approved'), ('rejected', 'Rejected'), ('archived', 'Archived')], max_length=50)),
-                ('changed_by', models.CharField(max_length=255)),
-                ('reason', models.CharField(max_length=255)),
-                ('changed_at', models.DateTimeField(auto_now_add=True)),
-                ('product', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='status_history', to='products.product')),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                (
+                    "status_from",
+                    models.CharField(
+                        choices=[
+                            ("created", "Created"),
+                            ("draft", "Draft"),
+                            ("moderation", "Moderation"),
+                            ("approved", "Approved"),
+                            ("rejected", "Rejected"),
+                            ("archived", "Archived"),
+                        ],
+                        max_length=50,
+                    ),
+                ),
+                (
+                    "status_to",
+                    models.CharField(
+                        choices=[
+                            ("created", "Created"),
+                            ("draft", "Draft"),
+                            ("moderation", "Moderation"),
+                            ("approved", "Approved"),
+                            ("rejected", "Rejected"),
+                            ("archived", "Archived"),
+                        ],
+                        max_length=50,
+                    ),
+                ),
+                ("changed_by", models.CharField(max_length=255)),
+                ("reason", models.CharField(max_length=255)),
+                ("changed_at", models.DateTimeField(auto_now_add=True)),
+                (
+                    "product",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="status_history",
+                        to="products.product",
+                    ),
+                ),
             ],
         ),
     ]

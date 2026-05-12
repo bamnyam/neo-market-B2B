@@ -1,7 +1,12 @@
 from rest_framework import serializers
 
 from app.categories.models import Category
-from app.products.models import Product, ProductStatus, ProductImages, ProductCharacteristics
+from app.products.models import (
+    Product,
+    ProductStatus,
+    ProductImages,
+    ProductCharacteristics,
+)
 
 
 class ProductImageCreateSerializer(serializers.Serializer):
