@@ -103,7 +103,7 @@ jobs:
         run: docker compose run --rm b2b-service uv run python manage.py migrate
 
       - name: Run tests
-        run: docker compose run --rm b2b-service uv run python manage.py test
+        run: docker compose run --rm b2b-service uv run pytest
 
       - name: Show logs on failure
         if: failure()
