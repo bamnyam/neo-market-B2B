@@ -1,9 +1,9 @@
 from rest_framework import status
-from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from app.common.authentication import SellerJWTAuthentication
+from app.common.permissions import IsSellerAuthenticated
 from app.products.api.serializers import (
     ProductCreateSerializer,
     ProductResponseSerializer,
@@ -12,7 +12,7 @@ from app.products.api.serializers import (
 
 class ProductsController(APIView):
     authentication_classes = [SellerJWTAuthentication]
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsSellerAuthenticated]
 
     def post(self, request):
         serializer = ProductCreateSerializer(
