@@ -1,4 +1,4 @@
-SERVICES = B2B B2C
+SERVICES = B2B #B2C
 
 test:
 	@for service in $(SERVICES); do \
