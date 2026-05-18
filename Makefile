@@ -18,4 +18,7 @@ format:
 		$(MAKE) -C $$service format; \
 	done
 
+build:
+	docker compose build
+
 check: lint test
