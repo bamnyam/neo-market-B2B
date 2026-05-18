@@ -1,23 +1,20 @@
-name: B2B CI
+name: CI
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
+
   pull_request:
-    branches:
-      - main
+    branches: [main]
 
 jobs:
   build:
-    name: Build B2B Docker Image
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Create env file
+      - name: Create env
         run: |
           cat > B2B/.env <<EOF
           DEBUG=True
@@ -29,82 +26,15 @@ jobs:
           POSTGRES_PORT=5432
           EOF
 
-      - name: Build B2B service
-        run: docker compose build b2b-service
+      - name: Build
+        run: make build
 
-  lint:
-    name: Lint B2B Service
-    runs-on: ubuntu-latest
-    needs: build
+      - name: Lint
+        run: make lint
 
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - name: Test
+        run: make test
 
-      - name: Create env file
-        run: |
-          cat > B2B/.env <<EOF
-          DEBUG=True
-          SECRET_KEY=${{ secrets.SECRET_KEY }}
-          POSTGRES_DB=b2b_db
-          POSTGRES_USER=b2b_user
-          POSTGRES_PASSWORD=b2b_password
-          POSTGRES_HOST=b2b-db
-          POSTGRES_PORT=5432
-          EOF
-
-      - name: Run Ruff lint
-        run: docker compose run --rm b2b-service uv run ruff check .
-
-      - name: Run Ruff format check
-        run: docker compose run --rm b2b-service uv run ruff format . --check
-
-  test:
-    name: Test B2B Service
-    runs-on: ubuntu-latest
-    needs: lint
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Create env file
-        run: |
-          cat > B2B/.env <<EOF
-          DEBUG=True
-          SECRET_KEY=${{ secrets.SECRET_KEY }}
-          POSTGRES_DB=b2b_db
-          POSTGRES_USER=b2b_user
-          POSTGRES_PASSWORD=b2b_password
-          POSTGRES_HOST=b2b-db
-          POSTGRES_PORT=5432
-          EOF
-
-      - name: Start PostgreSQL
-        run: docker compose up -d b2b-db
-
-      - name: Wait for PostgreSQL
-        run: |
-          for i in {1..30}; do
-            docker compose exec -T b2b-db pg_isready -U b2b_user -d b2b_db && exit 0
-            sleep 1
-          done
-          echo "PostgreSQL is not ready"
-          docker compose logs b2b-db
-          exit 1
-
-      - name: Run Django system checks
-        run: docker compose run --rm b2b-service uv run python manage.py check
-
-      - name: Check migrations
-        run: docker compose run --rm b2b-service uv run python manage.py makemigrations --check --dry-run
-
-      - name: Apply migrations
-        run: docker compose run --rm b2b-service uv run python manage.py migrate
-
-      - name: Run tests
-        run: docker compose run --rm b2b-service uv run pytest
-
-      - name: Show logs on failure
+      - name: Logs on failure
         if: failure()
         run: docker compose logs
