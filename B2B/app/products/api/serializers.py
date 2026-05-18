@@ -76,7 +76,9 @@ class ProductCreateSerializer(serializers.Serializer):
 
 
 class ProductResponseSerializer(serializers.ModelSerializer):
-    category = serializers.SerializerMethodField()
+    seller_id = serializers.UUIDField(source="seller.id")
+    category_id = serializers.UUIDField(source="category.id")
+
     images = serializers.SerializerMethodField()
     characteristics = serializers.SerializerMethodField()
     skus = serializers.SerializerMethodField()
@@ -85,24 +87,22 @@ class ProductResponseSerializer(serializers.ModelSerializer):
         model = Product
         fields = [
             "id",
+            "seller_id",
+            "category_id",
             "title",
             "description",
             "status",
-            "category",
             "images",
             "characteristics",
             "skus",
+            "created_at",
+            "updated_at",
         ]
-
-    def get_category(self, obj):
-        return {
-            "id": str(obj.category.id),
-            "name": obj.category.name,
-        }
 
     def get_images(self, obj):
         return [
             {
+                "id": str(image.id),
                 "url": image.url,
                 "ordering": image.ordering,
             }
@@ -112,6 +112,7 @@ class ProductResponseSerializer(serializers.ModelSerializer):
     def get_characteristics(self, obj):
         return [
             {
+                "id": str(characteristic.id),
                 "name": characteristic.name,
                 "value": characteristic.value,
             }
@@ -119,4 +120,13 @@ class ProductResponseSerializer(serializers.ModelSerializer):
         ]
 
     def get_skus(self, obj):
-        return []
+        return [
+            {
+                "id": str(sku.id),
+                "name": sku.name,
+                "price": sku.price,
+                "stock_quantity": sku.stock_quantity,
+                "article": sku.article,
+            }
+            for sku in obj.skus.all()
+        ]

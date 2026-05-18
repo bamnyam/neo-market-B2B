@@ -80,7 +80,6 @@ def test_product_create_serializer_rejects_missing_category():
 def test_product_response_serializer_returns_expected_payload():
     seller = SellerFactory()
     category = CategoryFactory()
-
     product = Product.objects.create(
         seller=seller,
         category=category,
@@ -89,13 +88,13 @@ def test_product_response_serializer_returns_expected_payload():
         status=ProductStatus.CREATED,
     )
 
-    ProductImages.objects.create(
+    image = ProductImages.objects.create(
         product=product,
         url="/s3/image.jpg",
         ordering=0,
     )
 
-    ProductCharacteristics.objects.create(
+    characteristic = ProductCharacteristics.objects.create(
         product=product,
         name="brand",
         value="Apple",
@@ -104,11 +103,26 @@ def test_product_response_serializer_returns_expected_payload():
     data = ProductResponseSerializer(product).data
 
     assert data["id"] == product.id
+    assert data["seller_id"] == str(seller.id)
+    assert data["category_id"] == str(category.id)
     assert data["title"] == "iPhone"
     assert data["description"] == "desc"
     assert data["status"] == ProductStatus.CREATED
-    assert data["category"]["id"] == str(category.id)
-    assert data["category"]["name"] == category.name
-    assert data["images"] == [{"url": "/s3/image.jpg", "ordering": 0}]
-    assert data["characteristics"] == [{"name": "brand", "value": "Apple"}]
+    assert data["created_at"] is not None
+    assert data["updated_at"] is not None
+    assert data["images"] == [
+        {
+            "id": str(image.id),
+            "url": "/s3/image.jpg",
+            "ordering": 0,
+        }
+    ]
+
+    assert data["characteristics"] == [
+        {
+            "id": str(characteristic.id),
+            "name": "brand",
+            "value": "Apple",
+        }
+    ]
     assert data["skus"] == []
