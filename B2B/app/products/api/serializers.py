@@ -1,3 +1,4 @@
+from django.db import transaction
 from rest_framework import serializers
 
 from app.categories.models import Category
@@ -20,78 +21,148 @@ class ProductCharacteristicCreateSerializer(serializers.Serializer):
 
 
 class ProductCreateSerializer(serializers.Serializer):
-    title = serializers.CharField(min_length=1, max_length=255)
-    description = serializers.CharField(min_length=1, max_length=5000)
+    title = serializers.CharField(
+        min_length=1,
+        max_length=255,
+    )
+
+    slug = serializers.SlugField(
+        min_length=1,
+        max_length=255,
+    )
+
+    description = serializers.CharField(
+        min_length=1,
+        max_length=5000,
+    )
+
     category_id = serializers.UUIDField()
-    images = ProductImageCreateSerializer(many=True)
-    characteristics = ProductCharacteristicCreateSerializer(many=True, required=False)
 
-    def validate_images(self, value):
-        if not value:
-            raise serializers.ValidationError("At least one image is required")
+    images = ProductImageCreateSerializer(
+        many=True,
+        required=False,
+        default=list,
+    )
 
-        return value
+    characteristics = ProductCharacteristicCreateSerializer(
+        many=True,
+        required=False,
+        default=list,
+    )
 
     def validate_category_id(self, value):
-        if not Category.objects.filter(id=value).exists():
+
+        if not Category.objects.filter(uuid=value).exists():
             raise serializers.ValidationError("Category not found")
 
         return value
 
+    def validate_slug(self, value):
+
+        if Product.objects.filter(slug=value).exists():
+            raise serializers.ValidationError("Slug already exists")
+
+        return value
+
+    def validate_images(self, value):
+
+        orderings = [image["ordering"] for image in value]
+
+        if len(orderings) != len(set(orderings)):
+            raise serializers.ValidationError("Image ordering must be unique")
+
+        return value
+
+    @transaction.atomic
     def create(self, validated_data):
+
         seller = self.context["seller"]
-        images_data = validated_data.pop("images")
-        characteristics_data = validated_data.pop("characteristics", [])
-        category_id = validated_data.pop("category_id")
+
+        images_data = validated_data.pop(
+            "images",
+            [],
+        )
+
+        characteristics_data = validated_data.pop(
+            "characteristics",
+            [],
+        )
+
+        category_uuid = validated_data.pop("category_id")
+
+        category = Category.objects.get(uuid=category_uuid)
 
         product = Product.objects.create(
             seller=seller,
-            category_id=category_id,
+            category=category,
             status=ProductStatus.CREATED,
+            deleted=False,
             **validated_data,
         )
 
-        ProductImages.objects.bulk_create(
-            [
-                ProductImages(
-                    product=product,
-                    url=image["url"],
-                    ordering=image["ordering"],
-                )
-                for image in images_data
-            ]
-        )
+        if images_data:
+            ProductImages.objects.bulk_create(
+                [
+                    ProductImages(
+                        product=product,
+                        url=image["url"],
+                        ordering=image["ordering"],
+                    )
+                    for image in images_data
+                ]
+            )
 
-        ProductCharacteristics.objects.bulk_create(
-            [
-                ProductCharacteristics(
-                    product=product,
-                    name=characteristic["name"],
-                    value=characteristic["value"],
-                )
-                for characteristic in characteristics_data
-            ]
-        )
+        if characteristics_data:
+            ProductCharacteristics.objects.bulk_create(
+                [
+                    ProductCharacteristics(
+                        product=product,
+                        name=characteristic["name"],
+                        value=characteristic["value"],
+                    )
+                    for characteristic in characteristics_data
+                ]
+            )
+
         return product
 
 
 class ProductResponseSerializer(serializers.ModelSerializer):
-    seller_id = serializers.UUIDField(source="seller.id")
-    category_id = serializers.UUIDField(source="category.id")
+    id = serializers.UUIDField(
+        source="uuid",
+        read_only=True,
+    )
+
+    seller_id = serializers.UUIDField(
+        source="seller.uuid",
+        read_only=True,
+    )
+
+    category_id = serializers.UUIDField(
+        source="category.uuid",
+        read_only=True,
+    )
 
     images = serializers.SerializerMethodField()
+
     characteristics = serializers.SerializerMethodField()
+
     skus = serializers.SerializerMethodField()
 
     class Meta:
         model = Product
+
         fields = [
             "id",
             "seller_id",
             "category_id",
             "title",
+            "slug",
             "description",
             "status",
+            "deleted",
+            "blocking_reason_id",
+            "moderator_comment",
             "images",
             "characteristics",
             "skus",
@@ -100,9 +171,10 @@ class ProductResponseSerializer(serializers.ModelSerializer):
         ]
 
     def get_images(self, obj):
+
         return [
             {
-                "id": str(image.id),
+                "id": str(image.uuid),
                 "url": image.url,
                 "ordering": image.ordering,
             }
@@ -110,9 +182,10 @@ class ProductResponseSerializer(serializers.ModelSerializer):
         ]
 
     def get_characteristics(self, obj):
+
         return [
             {
-                "id": str(characteristic.id),
+                "id": str(characteristic.uuid),
                 "name": characteristic.name,
                 "value": characteristic.value,
             }
@@ -120,13 +193,37 @@ class ProductResponseSerializer(serializers.ModelSerializer):
         ]
 
     def get_skus(self, obj):
+
         return [
             {
-                "id": str(sku.id),
+                "id": str(sku.uuid),
+                "product_id": str(obj.uuid),
                 "name": sku.name,
-                "price": sku.price,
+                "price": float(sku.price),
+                "discount": float(sku.discount),
+                "cost_price": float(sku.cost_price),
                 "stock_quantity": sku.stock_quantity,
+                "active_quantity": sku.active_quantity,
+                "reserved_quantity": sku.reserved_quantity,
                 "article": sku.article,
+                "images": [
+                    {
+                        "id": str(image.uuid),
+                        "url": image.url,
+                        "ordering": image.ordering,
+                    }
+                    for image in sku.images.all().order_by("ordering")
+                ],
+                "characteristics": [
+                    {
+                        "id": str(characteristic.uuid),
+                        "name": characteristic.name,
+                        "value": characteristic.value,
+                    }
+                    for characteristic in sku.characteristics.all()
+                ],
+                "created_at": sku.created_at,
+                "updated_at": sku.updated_at,
             }
             for sku in obj.skus.all()
         ]

@@ -7,7 +7,7 @@ class SellerFactory(factory.django.DjangoModelFactory):
     class Meta:
         model = Seller
 
-    company_name = "Test seller"
-    inn = "1234567890"
-    contact_email = "seller@test.com"
-    contact_phone = "+79999999999"
+    company_name = factory.Sequence(lambda n: f"Test seller {n}")
+    inn = factory.Sequence(lambda n: f"{1000000000 + n}")
+    contact_email = factory.Sequence(lambda n: f"seller{n}@test.com")
+    contact_phone = factory.Sequence(lambda n: f"+79999999{n:03}")

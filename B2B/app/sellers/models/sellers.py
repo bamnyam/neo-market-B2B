@@ -1,4 +1,5 @@
 import re
+import uuid
 
 from django.core.validators import RegexValidator
 from django.db import models
@@ -8,6 +9,12 @@ INN_RE = r"^(\d{10}|\d{12})$"
 
 
 class Seller(models.Model):
+    uuid = models.UUIDField(
+        default=uuid.uuid4,
+        editable=False,
+        unique=True,
+        db_index=True,
+    )
     company_name = models.CharField(max_length=200)
     inn = models.CharField(
         validators=[
