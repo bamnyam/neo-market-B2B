@@ -75,7 +75,7 @@ def test_product_create_serializer_creates_product_with_images_and_characteristi
 
 
 @pytest.mark.django_db
-def test_product_create_serializer_creates_product_without_images_and_characteristics():
+def test_product_create_serializer_rejects_missing_images():
     seller = SellerFactory()
     category = CategoryFactory()
 
@@ -89,15 +89,10 @@ def test_product_create_serializer_creates_product_without_images_and_characteri
         context={"seller": seller},
     )
 
-    assert serializer.is_valid(), serializer.errors
+    assert not serializer.is_valid()
+    assert "images" in serializer.errors
 
-    product = serializer.save()
-
-    assert product.seller == seller
-    assert product.category == category
-    assert product.slug == "iphone-without-images"
-
-    assert Product.objects.count() == 1
+    assert Product.objects.count() == 0
     assert ProductImages.objects.count() == 0
     assert ProductCharacteristics.objects.count() == 0
 

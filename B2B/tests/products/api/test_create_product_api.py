@@ -120,9 +120,8 @@ def test_create_product_returns_201_with_created_status(
 
 
 @pytest.mark.django_db
-def test_create_product_without_images_returns_201(
+def test_create_product_without_images_returns_400(
     auth_client,
-    seller,
     category,
 ):
     response = auth_client.post(
@@ -136,15 +135,11 @@ def test_create_product_without_images_returns_201(
         format="json",
     )
 
-    assert response.status_code == 201, response.data
+    assert response.status_code == 400
+    assert response.data["code"] == "INVALID_REQUEST"
+    assert response.data["field"] == "images"
 
-    assert response.data["seller_id"] == str(seller.uuid)
-    assert response.data["category_id"] == str(category.uuid)
-    assert response.data["images"] == []
-    assert response.data["characteristics"] == []
-    assert response.data["skus"] == []
-
-    assert Product.objects.count() == 1
+    assert Product.objects.count() == 0
 
 
 @pytest.mark.django_db

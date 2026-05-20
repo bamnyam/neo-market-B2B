@@ -40,8 +40,8 @@ class ProductCreateSerializer(serializers.Serializer):
 
     images = ProductImageCreateSerializer(
         many=True,
-        required=False,
-        default=list,
+        required=True,
+        min_length=1,
     )
 
     characteristics = ProductCharacteristicCreateSerializer(
