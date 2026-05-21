@@ -227,3 +227,52 @@ class ProductResponseSerializer(serializers.ModelSerializer):
             }
             for sku in obj.skus.all()
         ]
+
+
+class ProductListItemSerializer(serializers.ModelSerializer):
+    id = serializers.UUIDField(
+        source="uuid",
+        read_only=True,
+    )
+
+    category_id = serializers.UUIDField(
+        source="category.uuid",
+        read_only=True,
+    )
+
+    min_price = serializers.SerializerMethodField()
+
+    cover_image = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Product
+        fields = [
+            "id",
+            "title",
+            "slug",
+            "status",
+            "category_id",
+            "deleted",
+            "created_at",
+            "min_price",
+            "cover_image",
+        ]
+
+    def get_min_price(self, obj):
+        prices = [sku.price for sku in obj.skus.all()]
+
+        if not prices:
+            return None
+
+        return float(min(prices))
+
+    def get_cover_image(self, obj):
+        image = next(
+            iter(obj.images.all().order_by("ordering")),
+            None,
+        )
+
+        if image is None:
+            return None
+
+        return image.url

@@ -6,6 +6,7 @@ from app.common.authentication import SellerJWTAuthentication
 from app.common.permissions import IsSellerAuthenticated
 from app.products.api.serializers import (
     ProductCreateSerializer,
+    ProductListItemSerializer,
     ProductResponseSerializer,
 )
 from app.products.errors.product_delete_error import ProductDeleteError
@@ -48,24 +49,52 @@ class ProductsController(APIView):
         )
 
     def get(self, request):
+        limit = int(request.query_params.get("limit", 20))
+        offset = int(request.query_params.get("offset", 0))
+        status_filter = request.query_params.get("status")
+        include_deleted = (
+            request.query_params.get("include_deleted", "false").lower() == "true"
+        )
+
         products = (
             Product.objects.filter(
                 seller=request.user,
-                deleted=False,
             )
-            .select_related("seller", "category")
+            .select_related(
+                "seller",
+                "category",
+            )
             .prefetch_related(
                 "images",
-                "characteristics",
                 "skus",
-                "skus__images",
-                "skus__characteristics",
             )
             .order_by("-created_at")
         )
 
+        if not include_deleted:
+            products = products.filter(
+                deleted=False,
+            )
+
+        if status_filter:
+            products = products.filter(
+                status=status_filter,
+            )
+
+        total_count = products.count()
+
+        products = products[offset : offset + limit]
+
         return Response(
-            ProductResponseSerializer(products, many=True).data,
+            {
+                "items": ProductListItemSerializer(
+                    products,
+                    many=True,
+                ).data,
+                "total_count": total_count,
+                "limit": limit,
+                "offset": offset,
+            },
             status=status.HTTP_200_OK,
         )
 

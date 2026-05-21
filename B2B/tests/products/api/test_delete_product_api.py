@@ -240,6 +240,7 @@ def test_delete_not_found_returns_404(
 
     requests_post.assert_not_called()
 
+
 @pytest.mark.django_db
 def test_deleted_product_not_in_seller_list(
     auth_client,
@@ -271,10 +272,11 @@ def test_deleted_product_not_in_seller_list(
 
     assert response.status_code == 200
 
-    product_ids = [
-        item["id"]
-        for item in response.data
-    ]
+    product_ids = [item["id"] for item in response.data["items"]]
 
     assert str(active_product.uuid) in product_ids
     assert str(deleted_product.uuid) not in product_ids
+
+    assert response.data["total_count"] == 1
+    assert response.data["limit"] == 20
+    assert response.data["offset"] == 0
