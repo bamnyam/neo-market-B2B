@@ -9,6 +9,7 @@ https://docs.djangoproject.com/en/5.2/topics/settings/
 For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.2/ref/settings/
 """
+
 import os
 from pathlib import Path
 
@@ -37,7 +38,7 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
-
+    "rest_framework",
     "app.categories.apps.CategoriesConfig",
     "app.invoices.apps.InvoicesConfig",
     "app.products.apps.ProductsConfig",
@@ -55,7 +56,7 @@ MIDDLEWARE = [
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
 
-ROOT_URLCONF = "app.urls"
+ROOT_URLCONF = "config.urls"
 
 TEMPLATES = [
     {
@@ -130,3 +131,7 @@ STATIC_URL = "static/"
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+REST_FRAMEWORK = {
+    "EXCEPTION_HANDLER": "app.common.api.exceptions.custom_exception_handler",
+}
