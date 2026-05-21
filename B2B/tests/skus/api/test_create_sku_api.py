@@ -36,9 +36,7 @@ def token(seller):
 
 @pytest.fixture
 def auth_client(client, token):
-    client.credentials(
-        HTTP_AUTHORIZATION=f"Bearer {token}"
-    )
+    client.credentials(HTTP_AUTHORIZATION=f"Bearer {token}")
     return client
 
 
@@ -123,9 +121,7 @@ def test_first_sku_emits_created_event_to_moderation(
 
     call = requests_post.call_args
 
-    assert call.args[0] == (
-        f"{settings.MODERATION_URL}/api/v1/events/product"
-    )
+    assert call.args[0] == (f"{settings.MODERATION_URL}/api/v1/events/product")
 
     assert call.kwargs["headers"] == {
         "X-Service-Key": settings.B2B_TO_MOD_KEY,

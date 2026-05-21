@@ -113,9 +113,7 @@ def test_create_sku_creates_sku_with_image_and_characteristics(
     assert image.url == "/s3/iphone15-black-256.jpg"
     assert image.ordering == 0
 
-    characteristics = list(
-        SkuCharacteristics.objects.filter(sku=sku).order_by("id")
-    )
+    characteristics = list(SkuCharacteristics.objects.filter(sku=sku).order_by("id"))
 
     assert characteristics[0].name == "Цвет"
     assert characteristics[0].value == "Чёрный"
