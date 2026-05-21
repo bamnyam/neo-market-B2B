@@ -8,11 +8,17 @@ from app.products.api.serializers import (
     ProductCreateSerializer,
     ProductResponseSerializer,
 )
+from app.products.errors.product_delete_error import ProductDeleteError
+from app.products.services.product_delete_service import (
+    ProductDeleteService,
+)
 
 
 class ProductsController(APIView):
     authentication_classes = [SellerJWTAuthentication]
     permission_classes = [IsSellerAuthenticated]
+
+    delete_service_class = ProductDeleteService
 
     def post(self, request):
         serializer = ProductCreateSerializer(
@@ -38,4 +44,28 @@ class ProductsController(APIView):
         return Response(
             ProductResponseSerializer(product).data,
             status=status.HTTP_201_CREATED,
+        )
+
+    def delete(self, request, id):
+
+        try:
+            self.delete_service_class().delete_product(
+                product_uuid=id,
+                seller=request.user,
+            )
+
+        except ProductDeleteError as error:
+            return Response(
+                {
+                    "code": error.code,
+                    "message": error.message,
+                },
+                status=error.status_code,
+            )
+
+        return Response(
+            {
+                "ok": True,
+            },
+            status=status.HTTP_200_OK,
         )
