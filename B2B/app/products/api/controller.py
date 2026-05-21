@@ -9,6 +9,7 @@ from app.products.api.serializers import (
     ProductResponseSerializer,
 )
 from app.products.errors.product_delete_error import ProductDeleteError
+from app.products.models import Product
 from app.products.services.product_delete_service import (
     ProductDeleteService,
 )
@@ -44,6 +45,28 @@ class ProductsController(APIView):
         return Response(
             ProductResponseSerializer(product).data,
             status=status.HTTP_201_CREATED,
+        )
+
+    def get(self, request):
+        products = (
+            Product.objects.filter(
+                seller=request.user,
+                deleted=False,
+            )
+            .select_related("seller", "category")
+            .prefetch_related(
+                "images",
+                "characteristics",
+                "skus",
+                "skus__images",
+                "skus__characteristics",
+            )
+            .order_by("-created_at")
+        )
+
+        return Response(
+            ProductResponseSerializer(products, many=True).data,
+            status=status.HTTP_200_OK,
         )
 
     def delete(self, request, id):
