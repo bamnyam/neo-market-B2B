@@ -135,3 +135,9 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 REST_FRAMEWORK = {
     "EXCEPTION_HANDLER": "app.common.api.exceptions.custom_exception_handler",
 }
+
+MODERATION_URL = os.getenv("MODERATION_URL", "http://moderation")
+B2C_URL = os.getenv("B2C_URL", "http://b2c")
+
+B2B_TO_MOD_KEY = os.getenv("B2B_TO_MOD_KEY", "test-mod-key")
+B2B_TO_B2C_KEY = os.getenv("B2B_TO_B2C_KEY", "test-b2c-key")
