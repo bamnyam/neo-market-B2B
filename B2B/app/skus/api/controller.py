@@ -4,7 +4,7 @@ from rest_framework.views import APIView
 
 from app.common.authentication import SellerJWTAuthentication
 from app.common.permissions import IsSellerAuthenticated
-from app.skus.api.serializers import SkuCreateSerializer
+from app.skus.api.serializers import SkuCreateSerializer, SkuResponseSerializer
 from app.skus.errors.sku_create_error import SkuCreateError
 from app.skus.services.sku_create_service import SkuCreateService
 
@@ -24,11 +24,11 @@ class SkusController(APIView):
 
             return Response(
                 {
-                    "code": "INVALID_REQUEST",
+                    "code": "VALIDATION_ERROR",
                     "message": str(message),
-                    "field": field,
+                    "details": serializer.errors,
                 },
-                status=status.HTTP_400_BAD_REQUEST,
+                status=status.HTTP_422_UNPROCESSABLE_ENTITY,
             )
 
         try:
@@ -46,27 +46,41 @@ class SkusController(APIView):
             )
 
         sku = result.sku
-        image = sku.images.order_by("ordering").first()
 
         return Response(
-            {
-                "id": str(sku.uuid),
-                "product_id": str(sku.product.uuid),
-                "name": sku.name,
-                "price": int(sku.price),
-                "cost_price": int(sku.cost_price),
-                "discount": int(sku.discount),
-                "image": image.url if image else None,
-                "active_quantity": sku.active_quantity,
-                "reserved_quantity": sku.reserved_quantity,
-                "characteristics": [
-                    {
-                        "id": str(characteristic.uuid),
-                        "name": characteristic.name,
-                        "value": characteristic.value,
-                    }
-                    for characteristic in sku.characteristics.all()
-                ],
-            },
+            SkuResponseSerializer(
+                {
+                    "id": sku.uuid,
+                    "product_id": sku.product.uuid,
+                    "name": sku.name,
+                    "price": int(sku.price),
+                    "cost_price": (
+                        int(sku.cost_price) if sku.cost_price is not None else None
+                    ),
+                    "discount": int(sku.discount),
+                    "stock_quantity": sku.stock_quantity,
+                    "active_quantity": sku.active_quantity,
+                    "reserved_quantity": sku.reserved_quantity,
+                    "article": sku.article,
+                    "created_at": sku.created_at,
+                    "updated_at": sku.updated_at,
+                    "images": [
+                        {
+                            "id": image.uuid,
+                            "url": image.url,
+                            "ordering": image.ordering,
+                        }
+                        for image in sku.images.all()
+                    ],
+                    "characteristics": [
+                        {
+                            "id": characteristic.uuid,
+                            "name": characteristic.name,
+                            "value": characteristic.value,
+                        }
+                        for characteristic in sku.characteristics.all()
+                    ],
+                }
+            ).data,
             status=status.HTTP_201_CREATED,
         )

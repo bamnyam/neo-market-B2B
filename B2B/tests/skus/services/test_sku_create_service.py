@@ -3,21 +3,42 @@ import uuid
 import pytest
 
 from app.products.models import Product, ProductStatus
-from app.skus.errors.invalid_sku_request_error import InvalidSkuRequestError
-from app.skus.errors.product_hard_blocked_error import ProductHardBlockedError
-from app.skus.errors.product_not_found_error import ProductNotFoundError
-from app.skus.errors.product_not_owner_error import ProductNotOwnerError
-from app.skus.models import Sku, SkuCharacteristics, SkuImages
-from app.skus.services.sku_create_service import SkuCreateService
-from tests.factories.category_factory import CategoryFactory
-from tests.factories.seller_factory import SellerFactory
+from app.skus.errors.invalid_sku_request_error import (
+    InvalidSkuRequestError,
+)
+from app.skus.errors.product_hard_blocked_error import (
+    ProductHardBlockedError,
+)
+from app.skus.errors.product_not_found_error import (
+    ProductNotFoundError,
+)
+from app.skus.errors.product_not_owner_error import (
+    ProductNotOwnerError,
+)
+from app.skus.models import (
+    Sku,
+    SkuCharacteristics,
+    SkuImages,
+)
+from app.skus.services.sku_create_service import (
+    SkuCreateService,
+)
+from tests.factories.category_factory import (
+    CategoryFactory,
+)
+from tests.factories.seller_factory import (
+    SellerFactory,
+)
 
 
 class FakeModerationEventsClient:
     def __init__(self):
         self.created_events = []
 
-    def emit_product_created(self, product):
+    def emit_product_created(
+        self,
+        product,
+    ):
         self.created_events.append(product)
 
 
@@ -37,7 +58,10 @@ def category():
 
 
 @pytest.fixture
-def product(seller, category):
+def product(
+    seller,
+    category,
+):
     return Product.objects.create(
         seller=seller,
         category=category,
@@ -54,9 +78,11 @@ def moderation_events_client():
 
 
 @pytest.fixture
-def service(moderation_events_client):
+def service(
+    moderation_events_client,
+):
     return SkuCreateService(
-        moderation_events_client=moderation_events_client,
+        moderation_events_client=(moderation_events_client),
     )
 
 
@@ -67,7 +93,13 @@ def valid_sku_data(product):
         "price": 12999000,
         "cost_price": 9500000,
         "discount": 0,
-        "image": "/s3/iphone15-black-256.jpg",
+        "article": "iphone-15-256-black",
+        "images": [
+            {
+                "url": ("/s3/iphone15-black-256.jpg"),
+                "ordering": 0,
+            }
+        ],
         "characteristics": [
             {
                 "name": "Цвет",
@@ -82,7 +114,7 @@ def valid_sku_data(product):
 
 
 @pytest.mark.django_db
-def test_create_sku_creates_sku_with_image_and_characteristics(
+def test_create_sku_creates_sku_with_images_and_characteristics(
     service,
     seller,
     product,
@@ -95,30 +127,86 @@ def test_create_sku_creates_sku_with_image_and_characteristics(
     sku = result.sku
 
     assert Sku.objects.count() == 1
+
     assert SkuImages.objects.count() == 1
+
     assert SkuCharacteristics.objects.count() == 2
 
     assert sku.product == product
+
     assert sku.name == "256GB Black"
+
     assert int(sku.price) == 12999000
+
     assert int(sku.cost_price) == 9500000
+
     assert int(sku.discount) == 0
+
     assert sku.stock_quantity == 0
+
     assert sku.active_quantity == 0
+
     assert sku.reserved_quantity == 0
-    assert sku.article is not None
+
+    assert sku.article == "iphone-15-256-black"
 
     image = SkuImages.objects.get(sku=sku)
 
-    assert image.url == "/s3/iphone15-black-256.jpg"
+    assert image.url == ("/s3/iphone15-black-256.jpg")
+
     assert image.ordering == 0
 
     characteristics = list(SkuCharacteristics.objects.filter(sku=sku).order_by("id"))
 
-    assert characteristics[0].name == "Цвет"
-    assert characteristics[0].value == "Чёрный"
-    assert characteristics[1].name == "Объём памяти"
-    assert characteristics[1].value == "256 ГБ"
+    assert characteristics[0].name == ("Цвет")
+
+    assert characteristics[0].value == ("Чёрный")
+
+    assert characteristics[1].name == ("Объём памяти")
+
+    assert characteristics[1].value == ("256 ГБ")
+
+
+@pytest.mark.django_db
+def test_create_sku_without_images(
+    service,
+    seller,
+    product,
+):
+    data = valid_sku_data(product)
+
+    data["images"] = []
+
+    result = service.create_sku(
+        seller=seller,
+        data=data,
+    )
+
+    sku = result.sku
+
+    assert sku is not None
+
+    assert SkuImages.objects.filter(sku=sku).count() == 0
+
+
+@pytest.mark.django_db
+def test_create_sku_with_null_cost_price(
+    service,
+    seller,
+    product,
+):
+    data = valid_sku_data(product)
+
+    data["cost_price"] = None
+
+    result = service.create_sku(
+        seller=seller,
+        data=data,
+    )
+
+    sku = result.sku
+
+    assert sku.cost_price == 0
 
 
 @pytest.mark.django_db
@@ -160,6 +248,7 @@ def test_second_sku_no_state_change(
     moderation_events_client,
 ):
     product.status = ProductStatus.ON_MODERATION
+
     product.save(update_fields=["status"])
 
     Sku.objects.create(
@@ -179,14 +268,15 @@ def test_second_sku_no_state_change(
         data={
             **valid_sku_data(product),
             "name": "256GB Black",
-            "image": "/s3/iphone15-black-256.jpg",
         },
     )
 
     product.refresh_from_db()
 
     assert product.status == ProductStatus.ON_MODERATION
+
     assert Sku.objects.count() == 2
+
     assert moderation_events_client.created_events == []
 
 
@@ -214,14 +304,15 @@ def test_created_product_with_existing_sku_does_not_emit_event(
         data={
             **valid_sku_data(product),
             "name": "256GB Black",
-            "image": "/s3/iphone15-black-256.jpg",
         },
     )
 
     product.refresh_from_db()
 
     assert product.status == ProductStatus.CREATED
+
     assert Sku.objects.count() == 2
+
     assert moderation_events_client.created_events == []
 
 
@@ -233,6 +324,7 @@ def test_add_sku_to_hard_blocked_raises_error(
     moderation_events_client,
 ):
     product.status = ProductStatus.HARD_BLOCKED
+
     product.save(update_fields=["status"])
 
     with pytest.raises(ProductHardBlockedError):
@@ -244,9 +336,13 @@ def test_add_sku_to_hard_blocked_raises_error(
     product.refresh_from_db()
 
     assert product.status == ProductStatus.HARD_BLOCKED
+
     assert Sku.objects.count() == 0
+
     assert SkuImages.objects.count() == 0
+
     assert SkuCharacteristics.objects.count() == 0
+
     assert moderation_events_client.created_events == []
 
 
@@ -262,7 +358,8 @@ def test_add_sku_to_missing_product_raises_error(
         "price": 12999000,
         "cost_price": 9500000,
         "discount": 0,
-        "image": "/s3/iphone15-black-256.jpg",
+        "article": "iphone-15-256-black",
+        "images": [],
         "characteristics": [],
     }
 
@@ -273,6 +370,7 @@ def test_add_sku_to_missing_product_raises_error(
         )
 
     assert Sku.objects.count() == 0
+
     assert moderation_events_client.created_events == []
 
 
@@ -300,6 +398,7 @@ def test_add_sku_to_other_seller_product_raises_error(
         )
 
     assert Sku.objects.count() == 0
+
     assert moderation_events_client.created_events == []
 
 
@@ -321,6 +420,7 @@ def test_empty_name_raises_invalid_request_error(
         )
 
     assert exc_info.value.message == "name is required"
+
     assert Sku.objects.count() == 0
 
 
@@ -341,19 +441,20 @@ def test_non_positive_price_raises_invalid_request_error(
             data=data,
         )
 
-    assert exc_info.value.message == "price must be a positive integer (kopecks)"
+    assert exc_info.value.message == ("price must be a positive integer (kopecks)")
+
     assert Sku.objects.count() == 0
 
 
 @pytest.mark.django_db
-def test_non_positive_cost_price_raises_invalid_request_error(
+def test_negative_cost_price_raises_invalid_request_error(
     service,
     seller,
     product,
 ):
     data = {
         **valid_sku_data(product),
-        "cost_price": 0,
+        "cost_price": -1,
     }
 
     with pytest.raises(InvalidSkuRequestError) as exc_info:
@@ -362,20 +463,20 @@ def test_non_positive_cost_price_raises_invalid_request_error(
             data=data,
         )
 
-    assert exc_info.value.message == "cost_price must be a positive integer (kopecks)"
+    assert exc_info.value.message == ("cost_price must be greater than or equal to 0")
+
     assert Sku.objects.count() == 0
 
 
 @pytest.mark.django_db
-def test_missing_image_raises_invalid_request_error(
+def test_missing_article_raises_invalid_request_error(
     service,
     seller,
     product,
 ):
-    data = {
-        **valid_sku_data(product),
-        "image": "",
-    }
+    data = valid_sku_data(product)
+
+    data["article"] = ""
 
     with pytest.raises(InvalidSkuRequestError) as exc_info:
         service.create_sku(
@@ -383,5 +484,6 @@ def test_missing_image_raises_invalid_request_error(
             data=data,
         )
 
-    assert exc_info.value.message == "image is required"
+    assert exc_info.value.message == "article is required"
+
     assert Sku.objects.count() == 0

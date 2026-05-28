@@ -1,4 +1,5 @@
 import uuid
+from datetime import UTC, datetime
 
 from app.skus.api.serializers import (
     SkuCreateSerializer,
@@ -16,7 +17,17 @@ def test_sku_create_serializer_accepts_valid_payload():
             "price": 12999000,
             "cost_price": 9500000,
             "discount": 0,
-            "image": "/s3/iphone15-black-256.jpg",
+            "article": "iphone-15-256-black",
+            "images": [
+                {
+                    "url": "/s3/iphone15-black-front.jpg",
+                    "ordering": 0,
+                },
+                {
+                    "url": "/s3/iphone15-black-back.jpg",
+                    "ordering": 1,
+                },
+            ],
             "characteristics": [
                 {
                     "name": "Цвет",
@@ -37,7 +48,19 @@ def test_sku_create_serializer_accepts_valid_payload():
     assert serializer.validated_data["price"] == 12999000
     assert serializer.validated_data["cost_price"] == 9500000
     assert serializer.validated_data["discount"] == 0
-    assert serializer.validated_data["image"] == "/s3/iphone15-black-256.jpg"
+    assert serializer.validated_data["article"] == ("iphone-15-256-black")
+
+    assert serializer.validated_data["images"] == [
+        {
+            "url": "/s3/iphone15-black-front.jpg",
+            "ordering": 0,
+        },
+        {
+            "url": "/s3/iphone15-black-back.jpg",
+            "ordering": 1,
+        },
+    ]
+
     assert serializer.validated_data["characteristics"] == [
         {
             "name": "Цвет",
@@ -50,7 +73,8 @@ def test_sku_create_serializer_accepts_valid_payload():
     ]
 
 
-def test_sku_create_serializer_sets_default_discount_and_characteristics():
+def test_sku_create_serializer_sets_default_values():
+
     product_id = uuid.uuid4()
 
     serializer = SkuCreateSerializer(
@@ -58,15 +82,49 @@ def test_sku_create_serializer_sets_default_discount_and_characteristics():
             "product_id": str(product_id),
             "name": "256GB Black",
             "price": 12999000,
-            "cost_price": 9500000,
-            "image": "/s3/iphone15-black-256.jpg",
+            "article": "iphone-15-256-black",
         }
     )
 
     assert serializer.is_valid(), serializer.errors
 
     assert serializer.validated_data["discount"] == 0
+
+    assert serializer.validated_data["images"] == []
+
     assert serializer.validated_data["characteristics"] == []
+
+    assert "cost_price" not in serializer.validated_data
+
+
+def test_sku_create_serializer_accepts_zero_price():
+
+    serializer = SkuCreateSerializer(
+        data={
+            "product_id": str(uuid.uuid4()),
+            "name": "256GB Black",
+            "price": 0,
+            "article": "iphone-15-256-black",
+        }
+    )
+
+    assert serializer.is_valid(), serializer.errors
+
+
+def test_sku_create_serializer_accepts_null_cost_price():
+    serializer = SkuCreateSerializer(
+        data={
+            "product_id": str(uuid.uuid4()),
+            "name": "256GB Black",
+            "price": 12999000,
+            "cost_price": None,
+            "article": "iphone-15-256-black",
+        }
+    )
+
+    assert serializer.is_valid(), serializer.errors
+
+    assert serializer.validated_data["cost_price"] is None
 
 
 def test_sku_create_serializer_rejects_invalid_product_id():
@@ -75,8 +133,7 @@ def test_sku_create_serializer_rejects_invalid_product_id():
             "product_id": "invalid-product-id",
             "name": "256GB Black",
             "price": 12999000,
-            "cost_price": 9500000,
-            "image": "/s3/iphone15-black-256.jpg",
+            "article": "iphone-15-256-black",
         }
     )
 
@@ -90,8 +147,7 @@ def test_sku_create_serializer_rejects_empty_name():
             "product_id": str(uuid.uuid4()),
             "name": "",
             "price": 12999000,
-            "cost_price": 9500000,
-            "image": "/s3/iphone15-black-256.jpg",
+            "article": "iphone-15-256-black",
         }
     )
 
@@ -104,8 +160,7 @@ def test_sku_create_serializer_rejects_missing_name():
         data={
             "product_id": str(uuid.uuid4()),
             "price": 12999000,
-            "cost_price": 9500000,
-            "image": "/s3/iphone15-black-256.jpg",
+            "article": "iphone-15-256-black",
         }
     )
 
@@ -113,34 +168,49 @@ def test_sku_create_serializer_rejects_missing_name():
     assert "name" in serializer.errors
 
 
-def test_sku_create_serializer_rejects_non_positive_price():
+def test_sku_create_serializer_rejects_negative_price():
+
     serializer = SkuCreateSerializer(
         data={
             "product_id": str(uuid.uuid4()),
             "name": "256GB Black",
-            "price": 0,
-            "cost_price": 9500000,
-            "image": "/s3/iphone15-black-256.jpg",
+            "price": -1,
+            "article": "iphone-15-256-black",
         }
     )
 
     assert not serializer.is_valid()
+
     assert "price" in serializer.errors
 
 
-def test_sku_create_serializer_rejects_non_positive_cost_price():
+def test_sku_create_serializer_accepts_zero_cost_price():
     serializer = SkuCreateSerializer(
         data={
             "product_id": str(uuid.uuid4()),
             "name": "256GB Black",
             "price": 12999000,
             "cost_price": 0,
-            "image": "/s3/iphone15-black-256.jpg",
+            "article": "iphone-15-256-black",
+        }
+    )
+
+    assert serializer.is_valid(), serializer.errors
+
+
+def test_sku_create_serializer_rejects_negative_cost_price():
+    serializer = SkuCreateSerializer(
+        data={
+            "product_id": str(uuid.uuid4()),
+            "name": "256GB Black",
+            "price": 12999000,
+            "cost_price": -1,
+            "article": "iphone-15-256-black",
         }
     )
 
     assert not serializer.is_valid()
-    assert "cost_price" in serializer.errors
+    assert "cost_price" not in serializer.validated_data
 
 
 def test_sku_create_serializer_rejects_negative_discount():
@@ -151,7 +221,7 @@ def test_sku_create_serializer_rejects_negative_discount():
             "price": 12999000,
             "cost_price": 9500000,
             "discount": -1,
-            "image": "/s3/iphone15-black-256.jpg",
+            "article": "iphone-15-256-black",
         }
     )
 
@@ -159,49 +229,66 @@ def test_sku_create_serializer_rejects_negative_discount():
     assert "discount" in serializer.errors
 
 
-def test_sku_create_serializer_rejects_missing_image():
+def test_sku_create_serializer_rejects_missing_article():
     serializer = SkuCreateSerializer(
         data={
             "product_id": str(uuid.uuid4()),
             "name": "256GB Black",
             "price": 12999000,
-            "cost_price": 9500000,
         }
     )
 
     assert not serializer.is_valid()
-    assert "image" in serializer.errors
+    assert "article" in serializer.errors
 
 
-def test_sku_create_serializer_rejects_empty_image():
+def test_sku_create_serializer_rejects_empty_article():
     serializer = SkuCreateSerializer(
         data={
             "product_id": str(uuid.uuid4()),
             "name": "256GB Black",
             "price": 12999000,
-            "cost_price": 9500000,
-            "image": "",
+            "article": "",
         }
     )
 
     assert not serializer.is_valid()
-    assert "image" in serializer.errors
+    assert "article" in serializer.errors
 
 
-def test_sku_create_serializer_accepts_empty_characteristics():
+def test_sku_create_serializer_accepts_empty_images():
     serializer = SkuCreateSerializer(
         data={
             "product_id": str(uuid.uuid4()),
             "name": "256GB Black",
             "price": 12999000,
-            "cost_price": 9500000,
-            "image": "/s3/iphone15-black-256.jpg",
-            "characteristics": [],
+            "article": "iphone-15-256-black",
+            "images": [],
         }
     )
 
     assert serializer.is_valid(), serializer.errors
-    assert serializer.validated_data["characteristics"] == []
+
+    assert serializer.validated_data["images"] == []
+
+
+def test_sku_create_serializer_rejects_image_without_url():
+    serializer = SkuCreateSerializer(
+        data={
+            "product_id": str(uuid.uuid4()),
+            "name": "256GB Black",
+            "price": 12999000,
+            "article": "iphone-15-256-black",
+            "images": [
+                {
+                    "ordering": 0,
+                }
+            ],
+        }
+    )
+
+    assert not serializer.is_valid()
+    assert "images" in serializer.errors
 
 
 def test_sku_create_serializer_rejects_characteristic_without_name():
@@ -210,8 +297,7 @@ def test_sku_create_serializer_rejects_characteristic_without_name():
             "product_id": str(uuid.uuid4()),
             "name": "256GB Black",
             "price": 12999000,
-            "cost_price": 9500000,
-            "image": "/s3/iphone15-black-256.jpg",
+            "article": "iphone-15-256-black",
             "characteristics": [
                 {
                     "value": "Чёрный",
@@ -230,8 +316,7 @@ def test_sku_create_serializer_rejects_characteristic_without_value():
             "product_id": str(uuid.uuid4()),
             "name": "256GB Black",
             "price": 12999000,
-            "cost_price": 9500000,
-            "image": "/s3/iphone15-black-256.jpg",
+            "article": "iphone-15-256-black",
             "characteristics": [
                 {
                     "name": "Цвет",
@@ -247,7 +332,12 @@ def test_sku_create_serializer_rejects_characteristic_without_value():
 def test_sku_response_serializer_returns_expected_payload():
     sku_id = uuid.uuid4()
     product_id = uuid.uuid4()
+
+    image_id = uuid.uuid4()
     characteristic_id = uuid.uuid4()
+
+    created_at = datetime.now(UTC)
+    updated_at = datetime.now(UTC)
 
     serializer = SkuResponseSerializer(
         {
@@ -257,9 +347,19 @@ def test_sku_response_serializer_returns_expected_payload():
             "price": 12999000,
             "cost_price": 9500000,
             "discount": 0,
-            "image": "/s3/iphone15-black-256.jpg",
-            "active_quantity": 0,
-            "reserved_quantity": 0,
+            "stock_quantity": 10,
+            "active_quantity": 8,
+            "reserved_quantity": 2,
+            "article": "iphone-15-256-black",
+            "created_at": created_at,
+            "updated_at": updated_at,
+            "images": [
+                {
+                    "id": image_id,
+                    "url": "/s3/iphone15-black.jpg",
+                    "ordering": 0,
+                }
+            ],
             "characteristics": [
                 {
                     "id": characteristic_id,
@@ -279,9 +379,25 @@ def test_sku_response_serializer_returns_expected_payload():
         "price": 12999000,
         "cost_price": 9500000,
         "discount": 0,
-        "image": "/s3/iphone15-black-256.jpg",
-        "active_quantity": 0,
-        "reserved_quantity": 0,
+        "stock_quantity": 10,
+        "active_quantity": 8,
+        "reserved_quantity": 2,
+        "article": "iphone-15-256-black",
+        "created_at": created_at.isoformat().replace(
+            "+00:00",
+            "Z",
+        ),
+        "updated_at": updated_at.isoformat().replace(
+            "+00:00",
+            "Z",
+        ),
+        "images": [
+            {
+                "id": str(image_id),
+                "url": "/s3/iphone15-black.jpg",
+                "ordering": 0,
+            }
+        ],
         "characteristics": [
             {
                 "id": str(characteristic_id),
