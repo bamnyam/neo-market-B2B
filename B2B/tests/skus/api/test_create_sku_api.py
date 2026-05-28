@@ -1,8 +1,10 @@
+import uuid
+from unittest.mock import patch
+
 import jwt
 import pytest
 from django.conf import settings
 from rest_framework.test import APIClient
-from unittest.mock import patch
 
 from app.products.models import Product, ProductStatus
 from app.skus.models import Sku
@@ -37,6 +39,7 @@ def token(seller):
 @pytest.fixture
 def auth_client(client, token):
     client.credentials(HTTP_AUTHORIZATION=f"Bearer {token}")
+
     return client
 
 
@@ -49,6 +52,18 @@ def product(seller, category):
         slug="iphone-15",
         description="desc",
         status=ProductStatus.CREATED,
+    )
+
+
+def build_expected_idempotency_key(
+    product_id,
+    event_type,
+):
+    return str(
+        uuid.uuid5(
+            uuid.NAMESPACE_DNS,
+            f"{str(product_id)}:{event_type}",
+        )
     )
 
 
@@ -67,7 +82,13 @@ def test_first_sku_transitions_product_to_on_moderation(
             "price": 12999000,
             "cost_price": 9500000,
             "discount": 0,
-            "image": "/s3/iphone15-black-256.jpg",
+            "article": "iphone-15-256-black",
+            "images": [
+                {
+                    "url": "/s3/iphone15-black-256.jpg",
+                    "ordering": 0,
+                }
+            ],
             "characteristics": [],
         },
         format="json",
@@ -78,20 +99,38 @@ def test_first_sku_transitions_product_to_on_moderation(
     product.refresh_from_db()
 
     assert product.status == ProductStatus.ON_MODERATION
+
     assert Sku.objects.count() == 1
 
     sku = Sku.objects.first()
 
     assert response.data["id"] == str(sku.uuid)
     assert response.data["product_id"] == str(product.uuid)
+
     assert response.data["name"] == "256GB Black"
+
     assert response.data["price"] == 12999000
     assert response.data["cost_price"] == 9500000
     assert response.data["discount"] == 0
-    assert response.data["image"] == "/s3/iphone15-black-256.jpg"
+
+    assert response.data["stock_quantity"] == 0
     assert response.data["active_quantity"] == 0
     assert response.data["reserved_quantity"] == 0
+
+    assert response.data["article"] == ("iphone-15-256-black")
+
+    assert response.data["images"] == [
+        {
+            "id": response.data["images"][0]["id"],
+            "url": "/s3/iphone15-black-256.jpg",
+            "ordering": 0,
+        }
+    ]
+
     assert response.data["characteristics"] == []
+
+    assert "created_at" in response.data
+    assert "updated_at" in response.data
 
 
 @pytest.mark.django_db
@@ -109,7 +148,13 @@ def test_first_sku_emits_created_event_to_moderation(
             "price": 12999000,
             "cost_price": 9500000,
             "discount": 0,
-            "image": "/s3/iphone15-black-256.jpg",
+            "article": "iphone-15-256-black",
+            "images": [
+                {
+                    "url": "/s3/iphone15-black-256.jpg",
+                    "ordering": 0,
+                }
+            ],
             "characteristics": [],
         },
         format="json",
@@ -130,10 +175,19 @@ def test_first_sku_emits_created_event_to_moderation(
     payload = call.kwargs["json"]
 
     assert payload["event"] == "CREATED"
+
     assert payload["product_id"] == str(product.uuid)
-    assert payload["seller_id"] == str(product.seller.uuid)
-    assert "idempotency_key" in payload
-    assert "date" in payload
+
+    assert payload["seller_id"] == (str(product.seller.uuid))
+
+    assert payload["idempotency_key"] == (
+        build_expected_idempotency_key(
+            product.uuid,
+            "CREATED",
+        )
+    )
+
+    assert payload["date"].endswith("Z")
 
 
 @pytest.mark.django_db
@@ -144,6 +198,7 @@ def test_second_sku_no_state_change(
     product,
 ):
     product.status = ProductStatus.ON_MODERATION
+
     product.save(update_fields=["status"])
 
     existing_sku = Sku.objects.create(
@@ -166,7 +221,13 @@ def test_second_sku_no_state_change(
             "price": 12999000,
             "cost_price": 9500000,
             "discount": 0,
-            "image": "/s3/iphone15-black-256.jpg",
+            "article": "iphone-15-256-black",
+            "images": [
+                {
+                    "url": "/s3/iphone15-black-256.jpg",
+                    "ordering": 0,
+                }
+            ],
             "characteristics": [],
         },
         format="json",
@@ -176,8 +237,10 @@ def test_second_sku_no_state_change(
 
     product.refresh_from_db()
 
-    assert product.status == ProductStatus.ON_MODERATION
+    assert product.status == (ProductStatus.ON_MODERATION)
+
     assert Sku.objects.count() == 2
+
     assert Sku.objects.filter(id=existing_sku.id).exists()
 
     requests_post.assert_not_called()
@@ -191,6 +254,7 @@ def test_add_sku_to_hard_blocked_returns_403(
     product,
 ):
     product.status = ProductStatus.HARD_BLOCKED
+
     product.save(update_fields=["status"])
 
     response = auth_client.post(
@@ -201,21 +265,29 @@ def test_add_sku_to_hard_blocked_returns_403(
             "price": 12999000,
             "cost_price": 9500000,
             "discount": 0,
-            "image": "/s3/iphone15-black-256.jpg",
+            "article": "iphone-15-256-black",
+            "images": [
+                {
+                    "url": "/s3/iphone15-black-256.jpg",
+                    "ordering": 0,
+                }
+            ],
             "characteristics": [],
         },
         format="json",
     )
 
     assert response.status_code == 403
+
     assert response.data == {
         "code": "FORBIDDEN",
-        "message": "Cannot add SKU to hard-blocked product",
+        "message": ("Cannot add SKU to hard-blocked product"),
     }
 
     product.refresh_from_db()
 
-    assert product.status == ProductStatus.HARD_BLOCKED
+    assert product.status == (ProductStatus.HARD_BLOCKED)
+
     assert Sku.objects.count() == 0
 
     requests_post.assert_not_called()

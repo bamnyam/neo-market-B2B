@@ -13,6 +13,18 @@ class SkuCharacteristicCreateSerializer(serializers.Serializer):
     )
 
 
+class SKUImageCreateSerializer(serializers.Serializer):
+    url = serializers.CharField(
+        min_length=1,
+        max_length=255,
+    )
+
+    ordering = serializers.IntegerField(
+        required=False,
+        default=0,
+    )
+
+
 class SkuCreateSerializer(serializers.Serializer):
     product_id = serializers.UUIDField()
 
@@ -22,11 +34,13 @@ class SkuCreateSerializer(serializers.Serializer):
     )
 
     price = serializers.IntegerField(
-        min_value=1,
+        min_value=0,
     )
 
     cost_price = serializers.IntegerField(
-        min_value=1,
+        min_value=0,
+        required=False,
+        allow_null=True,
     )
 
     discount = serializers.IntegerField(
@@ -35,9 +49,15 @@ class SkuCreateSerializer(serializers.Serializer):
         default=0,
     )
 
-    image = serializers.CharField(
+    article = serializers.CharField(
         min_length=1,
         max_length=255,
+    )
+
+    images = SKUImageCreateSerializer(
+        many=True,
+        required=False,
+        default=list,
     )
 
     characteristics = SkuCharacteristicCreateSerializer(
@@ -53,14 +73,39 @@ class SkuCharacteristicResponseSerializer(serializers.Serializer):
     value = serializers.CharField()
 
 
+class SKUImageResponseSerializer(serializers.Serializer):
+    id = serializers.UUIDField()
+    url = serializers.CharField()
+    ordering = serializers.IntegerField()
+
+
 class SkuResponseSerializer(serializers.Serializer):
     id = serializers.UUIDField()
     product_id = serializers.UUIDField()
+
     name = serializers.CharField()
+
     price = serializers.IntegerField()
-    cost_price = serializers.IntegerField()
+    cost_price = serializers.IntegerField(
+        allow_null=True,
+        required=False,
+    )
+
     discount = serializers.IntegerField()
-    image = serializers.CharField()
+
+    stock_quantity = serializers.IntegerField()
     active_quantity = serializers.IntegerField()
     reserved_quantity = serializers.IntegerField()
-    characteristics = SkuCharacteristicResponseSerializer(many=True)
+
+    article = serializers.CharField()
+
+    created_at = serializers.DateTimeField()
+    updated_at = serializers.DateTimeField()
+
+    images = SKUImageResponseSerializer(
+        many=True,
+    )
+
+    characteristics = SkuCharacteristicResponseSerializer(
+        many=True,
+    )
