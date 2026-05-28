@@ -1,8 +1,10 @@
+import uuid
+from unittest.mock import patch
+
 import jwt
 import pytest
 from django.conf import settings
 from rest_framework.test import APIClient
-from unittest.mock import patch
 
 from app.products.models import Product
 from app.skus.models import Sku
@@ -71,6 +73,13 @@ def sku(product):
     )
 
 
+def build_expected_idempotency_key(
+    product_id,
+    event_type,
+):
+    return str(uuid.uuid5(uuid.NAMESPACE_DNS, f"{product_id}:{event_type}"))
+
+
 @pytest.mark.django_db
 @patch("app.products.integration.product_events.requests.post")
 def test_delete_sets_deleted_true(
@@ -83,8 +92,8 @@ def test_delete_sets_deleted_true(
         format="json",
     )
 
-    assert response.status_code == 200
-    assert response.data == {"ok": True}
+    assert response.status_code == 204
+    assert response.content == b""
 
     product.refresh_from_db()
 
@@ -104,7 +113,7 @@ def test_delete_emits_event_to_moderation(
         format="json",
     )
 
-    assert response.status_code == 200
+    assert response.status_code == 204
 
     assert requests_post.call_count == 2
 
@@ -120,11 +129,18 @@ def test_delete_emits_event_to_moderation(
 
     payload = moderation_call.kwargs["json"]
 
-    assert payload["event"] == "DELETED"
-    assert payload["product_id"] == str(product.uuid)
-    assert payload["seller_id"] == str(product.seller.uuid)
-    assert "idempotency_key" in payload
-    assert "date" in payload
+    assert payload == {
+        "idempotency_key": build_expected_idempotency_key(
+            product.uuid,
+            "DELETED",
+        ),
+        "product_id": str(product.uuid),
+        "seller_id": str(product.seller.uuid),
+        "event": "DELETED",
+        "date": payload["date"],
+    }
+
+    assert payload["date"].endswith("Z")
 
 
 @pytest.mark.django_db
@@ -140,7 +156,7 @@ def test_delete_emits_product_deleted_to_b2c(
         format="json",
     )
 
-    assert response.status_code == 200
+    assert response.status_code == 204
 
     assert requests_post.call_count == 2
 
@@ -154,11 +170,50 @@ def test_delete_emits_product_deleted_to_b2c(
 
     payload = b2c_call.kwargs["json"]
 
-    assert payload["event"] == "PRODUCT_DELETED"
-    assert payload["product_id"] == str(product.uuid)
-    assert payload["sku_ids"] == [str(sku.uuid)]
-    assert "idempotency_key" in payload
-    assert "date" in payload
+    assert payload == {
+        "idempotency_key": build_expected_idempotency_key(
+            product.uuid,
+            "DELETED",
+        ),
+        "event": "PRODUCT_DELETED",
+        "product_id": str(product.uuid),
+        "sku_ids": [str(sku.uuid)],
+        "date": payload["date"],
+    }
+
+    assert payload["date"].endswith("Z")
+
+
+@pytest.mark.django_db
+@patch("app.products.integration.product_events.requests.post")
+def test_delete_generates_stable_idempotency_keys(
+    requests_post,
+    auth_client,
+    product,
+):
+    response = auth_client.delete(
+        f"/api/v1/products/{product.uuid}",
+        format="json",
+    )
+
+    assert response.status_code == 204
+
+    moderation_payload = requests_post.call_args_list[0].kwargs["json"]
+    b2c_payload = requests_post.call_args_list[1].kwargs["json"]
+
+    assert moderation_payload["idempotency_key"] == (
+        build_expected_idempotency_key(
+            product.uuid,
+            "DELETED",
+        )
+    )
+
+    assert b2c_payload["idempotency_key"] == (
+        build_expected_idempotency_key(
+            product.uuid,
+            "DELETED",
+        )
+    )
 
 
 @pytest.mark.django_db
@@ -177,6 +232,7 @@ def test_delete_already_deleted_returns_400(
     )
 
     assert response.status_code == 400
+
     assert response.data == {
         "code": "INVALID_REQUEST",
         "message": "Product already deleted",
@@ -185,6 +241,7 @@ def test_delete_already_deleted_returns_400(
     product.refresh_from_db()
 
     assert product.deleted is True
+
     requests_post.assert_not_called()
 
 
@@ -210,14 +267,16 @@ def test_delete_others_product_returns_403(
     )
 
     assert response.status_code == 403
+
     assert response.data == {
         "code": "NOT_OWNER",
-        "message": "Product does not belong to the authenticated seller",
+        "message": ("Product does not belong to the authenticated seller"),
     }
 
     product.refresh_from_db()
 
     assert product.deleted is False
+
     requests_post.assert_not_called()
 
 
@@ -233,6 +292,7 @@ def test_delete_not_found_returns_404(
     )
 
     assert response.status_code == 404
+
     assert response.data == {
         "code": "NOT_FOUND",
         "message": "Product not found",
