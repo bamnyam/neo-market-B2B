@@ -32,7 +32,10 @@ class ProductEventsClient:
 
     def _emit_to_moderation(self, product, deleted_at):
         payload = {
-            "idempotency_key": str(uuid.uuid4()),
+            "idempotency_key": self._build_idempotency_key(
+                product.uuid,
+                "DELETED",
+            ),
             "product_id": str(product.uuid),
             "seller_id": str(product.seller.uuid),
             "event": "DELETED",
@@ -52,7 +55,10 @@ class ProductEventsClient:
         sku_ids = [str(sku.uuid) for sku in product.skus.all()]
 
         payload = {
-            "idempotency_key": str(uuid.uuid4()),
+            "idempotency_key": self._build_idempotency_key(
+                product.uuid,
+                "DELETED",
+            ),
             "event": "PRODUCT_DELETED",
             "product_id": str(product.uuid),
             "sku_ids": sku_ids,
@@ -66,4 +72,16 @@ class ProductEventsClient:
                 "X-Service-Key": settings.B2B_TO_B2C_KEY,
             },
             timeout=3,
+        )
+
+    def _build_idempotency_key(
+        self,
+        product_id,
+        event_type,
+    ):
+        return str(
+            uuid.uuid5(
+                uuid.NAMESPACE_DNS,
+                f"{product_id}:{event_type}",
+            )
         )

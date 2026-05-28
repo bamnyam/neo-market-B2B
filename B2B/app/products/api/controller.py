@@ -116,8 +116,5 @@ class ProductsController(APIView):
             )
 
         return Response(
-            {
-                "ok": True,
-            },
-            status=status.HTTP_200_OK,
+            status=status.HTTP_204_NO_CONTENT,
         )
