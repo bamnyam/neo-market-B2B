@@ -9,4 +9,9 @@ urlpatterns = [
         SkusController.as_view(),
         name="create-sku",
     ),
+    path(
+        "skus/<uuid:id>",
+        SkusController.as_view(),
+        name="sku-detail",
+    ),
 ]

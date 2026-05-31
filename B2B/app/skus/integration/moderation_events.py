@@ -18,7 +18,13 @@ class ModerationEventsClient:
     def emit_product_updated(self, product):
         self._emit_event(
             product=product,
-            event_type="UPDATED",
+            event_type="EDITED",
+        )
+
+    def emit_product_edited(self, product):
+        self._emit_event(
+            product=product,
+            event_type="EDITED",
         )
 
     def _emit_event(
