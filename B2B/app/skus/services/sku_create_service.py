@@ -137,7 +137,18 @@ class SkuCreateService:
                 ]
             )
 
+        event_type = None
+
         if is_first_sku and product.status == ProductStatus.CREATED:
+            event_type = "CREATED"
+
+        elif product.status in (
+            ProductStatus.MODERATED,
+            ProductStatus.BLOCKED,
+        ):
+            event_type = "UPDATED"
+
+        if event_type:
             product.status = ProductStatus.ON_MODERATION
 
             product.save(
@@ -147,6 +158,10 @@ class SkuCreateService:
                 ]
             )
 
-            self.moderation_events_client.emit_product_created(product)
+            if event_type == "CREATED":
+                self.moderation_events_client.emit_product_created(product)
+
+            else:
+                self.moderation_events_client.emit_product_updated(product)
 
         return SkuCreateResult(sku=sku)
