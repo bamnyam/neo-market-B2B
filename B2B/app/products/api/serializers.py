@@ -127,6 +127,65 @@ class ProductCreateSerializer(serializers.Serializer):
         return product
 
 
+class ProductUpdateSerializer(serializers.Serializer):
+    title = serializers.CharField(
+        min_length=1,
+        max_length=255,
+        required=False,
+    )
+
+    slug = serializers.SlugField(
+        min_length=1,
+        max_length=255,
+        required=False,
+    )
+
+    description = serializers.CharField(
+        min_length=1,
+        max_length=5000,
+        required=False,
+    )
+
+    category_id = serializers.UUIDField(
+        required=False,
+    )
+
+    images = ProductImageCreateSerializer(
+        many=True,
+        required=False,
+        min_length=1,
+    )
+
+    characteristics = ProductCharacteristicCreateSerializer(
+        many=True,
+        required=False,
+    )
+
+    def validate_category_id(self, value):
+
+        if not Category.objects.filter(uuid=value).exists():
+            raise serializers.ValidationError("Category not found")
+
+        return value
+
+    def validate_slug(self, value):
+        product = self.context["product"]
+
+        if Product.objects.filter(slug=value).exclude(id=product.id).exists():
+            raise serializers.ValidationError("Slug already exists")
+
+        return value
+
+    def validate_images(self, value):
+
+        orderings = [image["ordering"] for image in value]
+
+        if len(orderings) != len(set(orderings)):
+            raise serializers.ValidationError("Image ordering must be unique")
+
+        return value
+
+
 class ProductResponseSerializer(serializers.ModelSerializer):
     id = serializers.UUIDField(
         source="uuid",

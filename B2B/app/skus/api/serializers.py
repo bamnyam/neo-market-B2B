@@ -67,6 +67,52 @@ class SkuCreateSerializer(serializers.Serializer):
     )
 
 
+class SkuUpdateSerializer(serializers.Serializer):
+    name = serializers.CharField(
+        min_length=1,
+        max_length=255,
+        required=False,
+    )
+
+    price = serializers.IntegerField(
+        min_value=0,
+        required=False,
+    )
+
+    cost_price = serializers.IntegerField(
+        min_value=0,
+        required=False,
+        allow_null=True,
+    )
+
+    discount = serializers.IntegerField(
+        min_value=0,
+        required=False,
+    )
+
+    article = serializers.CharField(
+        min_length=1,
+        max_length=255,
+        required=False,
+    )
+
+    image = serializers.CharField(
+        min_length=1,
+        max_length=255,
+        required=False,
+    )
+
+    images = SKUImageCreateSerializer(
+        many=True,
+        required=False,
+    )
+
+    characteristics = SkuCharacteristicCreateSerializer(
+        many=True,
+        required=False,
+    )
+
+
 class SkuCharacteristicResponseSerializer(serializers.Serializer):
     id = serializers.UUIDField()
     name = serializers.CharField()
