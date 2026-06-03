@@ -288,6 +288,132 @@ class ProductResponseSerializer(serializers.ModelSerializer):
         ]
 
 
+class ProductDetailSerializer(serializers.ModelSerializer):
+    id = serializers.UUIDField(
+        source="uuid",
+        read_only=True,
+    )
+    seller_id = serializers.UUIDField(
+        source="seller.uuid",
+        read_only=True,
+    )
+    category_id = serializers.UUIDField(
+        source="category.uuid",
+        read_only=True,
+    )
+    blocked = serializers.SerializerMethodField()
+    images = serializers.SerializerMethodField()
+    characteristics = serializers.SerializerMethodField()
+    skus = serializers.SerializerMethodField()
+    blocking_reason = serializers.SerializerMethodField()
+    field_reports = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Product
+        fields = [
+            "id",
+            "seller_id",
+            "category_id",
+            "title",
+            "slug",
+            "description",
+            "status",
+            "deleted",
+            "images",
+            "characteristics",
+            "skus",
+            "created_at",
+            "updated_at",
+            "blocked",
+            "blocking_reason",
+            "field_reports",
+        ]
+
+    def get_blocked(self, obj):
+        return obj.status in (
+            ProductStatus.BLOCKED,
+            ProductStatus.HARD_BLOCKED,
+        )
+
+    def get_images(self, obj):
+        return [
+            {
+                "id": str(image.uuid),
+                "url": image.url,
+                "ordering": image.ordering,
+            }
+            for image in obj.images.all().order_by("ordering")
+        ]
+
+    def get_characteristics(self, obj):
+        return [
+            {
+                "id": str(characteristic.uuid),
+                "name": characteristic.name,
+                "value": characteristic.value,
+            }
+            for characteristic in obj.characteristics.all()
+        ]
+
+    def get_skus(self, obj):
+        return [
+            {
+                "id": str(sku.uuid),
+                "product_id": str(obj.uuid),
+                "name": sku.name,
+                "price": int(sku.price),
+                "discount": int(sku.discount),
+                "cost_price": int(sku.cost_price),
+                "stock_quantity": sku.stock_quantity,
+                "active_quantity": sku.active_quantity,
+                "reserved_quantity": sku.reserved_quantity,
+                "article": sku.article,
+                "images": [
+                    {
+                        "id": str(image.uuid),
+                        "url": image.url,
+                        "ordering": image.ordering,
+                    }
+                    for image in sku.images.all().order_by("ordering")
+                ],
+                "characteristics": [
+                    {
+                        "id": str(characteristic.uuid),
+                        "name": characteristic.name,
+                        "value": characteristic.value,
+                    }
+                    for characteristic in sku.characteristics.all()
+                ],
+                "created_at": sku.created_at,
+                "updated_at": sku.updated_at,
+            }
+            for sku in obj.skus.all()
+        ]
+
+    def get_blocking_reason(self, obj):
+        if obj.status != ProductStatus.BLOCKED or obj.blocking_reason_id is None:
+            return None
+
+        return {
+            "id": str(obj.blocking_reason_id),
+            "title": obj.blocking_reason_title or "",
+            "comment": obj.moderator_comment or "",
+        }
+
+    def get_field_reports(self, obj):
+        if obj.status != ProductStatus.BLOCKED:
+            return []
+
+        return [
+            {
+                "field_name": report.field_name,
+                "sku_id": str(report.sku.uuid) if report.sku_id else None,
+                "comment": report.comment,
+            }
+            for report in obj.field_reports.all()
+        ]
+
+
 class ProductListItemSerializer(serializers.ModelSerializer):
     id = serializers.UUIDField(
         source="uuid",

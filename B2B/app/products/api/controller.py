@@ -1,11 +1,14 @@
+import uuid
+
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from app.common.authentication import SellerJWTAuthentication
+from app.common.authentication import SellerOrModerationAuthentication
 from app.common.permissions import IsSellerAuthenticated
 from app.products.api.serializers import (
     ProductCreateSerializer,
+    ProductDetailSerializer,
     ProductListItemSerializer,
     ProductResponseSerializer,
     ProductUpdateSerializer,
@@ -19,7 +22,7 @@ from app.products.services.product_update_service import ProductUpdateService
 
 
 class ProductsController(APIView):
-    authentication_classes = [SellerJWTAuthentication]
+    authentication_classes = [SellerOrModerationAuthentication]
     permission_classes = [IsSellerAuthenticated]
 
     delete_service_class = ProductDeleteService
@@ -51,7 +54,10 @@ class ProductsController(APIView):
             status=status.HTTP_201_CREATED,
         )
 
-    def get(self, request):
+    def get(self, request, id=None):
+        if id is not None:
+            return self._get_detail(request, id)
+
         limit = int(request.query_params.get("limit", 20))
         offset = int(request.query_params.get("offset", 0))
         status_filter = request.query_params.get("status")
@@ -101,11 +107,64 @@ class ProductsController(APIView):
             status=status.HTTP_200_OK,
         )
 
+    def _get_detail(self, request, id):
+        product_uuid = self._parse_product_uuid(id)
+
+        if product_uuid is None:
+            return Response(
+                {
+                    "code": "INVALID_REQUEST",
+                    "message": "id must be a valid UUID",
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        products = (
+            Product.objects.select_related("seller", "category")
+            .prefetch_related(
+                "images",
+                "characteristics",
+                "skus__images",
+                "skus__characteristics",
+                "field_reports__sku",
+            )
+            .filter(uuid=product_uuid)
+        )
+
+        if getattr(request, "access_mode", "seller") == "seller":
+            products = products.filter(seller=request.user)
+
+        product = products.first()
+
+        if product is None:
+            return Response(
+                {
+                    "code": "NOT_FOUND",
+                    "message": "Product not found",
+                },
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        return Response(
+            ProductDetailSerializer(product).data,
+            status=status.HTTP_200_OK,
+        )
+
     def delete(self, request, id):
+        product_uuid = self._parse_product_uuid(id)
+
+        if product_uuid is None:
+            return Response(
+                {
+                    "code": "INVALID_REQUEST",
+                    "message": "id must be a valid UUID",
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         try:
             self.delete_service_class().delete_product(
-                product_uuid=id,
+                product_uuid=product_uuid,
                 seller=request.user,
             )
 
@@ -123,8 +182,19 @@ class ProductsController(APIView):
         )
 
     def put(self, request, id):
+        product_uuid = self._parse_product_uuid(id)
+
+        if product_uuid is None:
+            return Response(
+                {
+                    "code": "INVALID_REQUEST",
+                    "message": "id must be a valid UUID",
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         try:
-            product = Product.objects.get(uuid=id)
+            product = Product.objects.get(uuid=product_uuid)
         except Product.DoesNotExist:
             return Response(
                 {
@@ -154,7 +224,7 @@ class ProductsController(APIView):
 
         try:
             result = self.update_service_class().update_product(
-                product_uuid=id,
+                product_uuid=product_uuid,
                 seller=request.user,
                 data=serializer.validated_data,
             )
@@ -173,3 +243,9 @@ class ProductsController(APIView):
         )
 
     patch = put
+
+    def _parse_product_uuid(self, value):
+        try:
+            return uuid.UUID(str(value))
+        except (TypeError, ValueError):
+            return None

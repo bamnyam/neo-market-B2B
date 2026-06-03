@@ -45,3 +45,33 @@ class SellerJWTAuthentication(BaseAuthentication):
             return Seller.objects.get(id=seller_id)
         except Seller.DoesNotExist as exc:
             raise AuthenticationFailed("Seller not found") from exc
+
+
+class ServicePrincipal:
+    def __init__(self, name: str):
+        self.name = name
+
+    @property
+    def is_authenticated(self):
+        return True
+
+
+class SellerOrModerationAuthentication(SellerJWTAuthentication):
+    SERVICE_KEY_HEADER = "X-Service-Key"
+
+    def authenticate(self, request):
+        service_key = request.headers.get(self.SERVICE_KEY_HEADER)
+
+        if service_key:
+            if service_key != settings.B2B_TO_MOD_KEY:
+                raise AuthenticationFailed("Invalid service key")
+
+            request.access_mode = "moderation_service"
+            return ServicePrincipal("moderation"), {"service": "moderation"}
+
+        result = super().authenticate(request)
+
+        if result is not None:
+            request.access_mode = "seller"
+
+        return result

@@ -34,6 +34,11 @@ class Product(models.Model):
         null=True,
         blank=True,
     )
+    blocking_reason_title = models.CharField(
+        max_length=255,
+        null=True,
+        blank=True,
+    )
     moderator_comment = models.TextField(
         null=True,
         blank=True,
