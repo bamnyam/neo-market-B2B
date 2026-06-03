@@ -6,6 +6,7 @@ import pytest
 
 from app.products.api.serializers import (
     ProductCreateSerializer,
+    ProductListItemSerializer,
     ProductResponseSerializer,
 )
 from app.products.models import (
@@ -14,6 +15,7 @@ from app.products.models import (
     ProductImages,
     ProductStatus,
 )
+from app.skus.models import Sku
 from tests.factories.category_factory import CategoryFactory
 from tests.factories.seller_factory import SellerFactory
 
@@ -95,6 +97,68 @@ def test_product_create_serializer_rejects_missing_images():
     assert Product.objects.count() == 0
     assert ProductImages.objects.count() == 0
     assert ProductCharacteristics.objects.count() == 0
+
+
+@pytest.mark.django_db
+def test_product_create_serializer_generates_slug_when_missing():
+    seller = SellerFactory()
+    category = CategoryFactory()
+
+    serializer = ProductCreateSerializer(
+        data={
+            "title": "iPhone 15",
+            "description": "desc",
+            "category_id": str(category.uuid),
+            "images": [
+                {
+                    "url": "/s3/image.jpg",
+                    "ordering": 0,
+                }
+            ],
+        },
+        context={"seller": seller},
+    )
+
+    assert serializer.is_valid(), serializer.errors
+
+    product = serializer.save()
+
+    assert product.slug == "iphone-15"
+
+
+@pytest.mark.django_db
+def test_product_create_serializer_generates_unique_slug_when_missing():
+    seller = SellerFactory()
+    category = CategoryFactory()
+    Product.objects.create(
+        seller=seller,
+        category=category,
+        title="Old iPhone",
+        slug="iphone",
+        description="old desc",
+        status=ProductStatus.CREATED,
+    )
+
+    serializer = ProductCreateSerializer(
+        data={
+            "title": "iPhone",
+            "description": "desc",
+            "category_id": str(category.uuid),
+            "images": [
+                {
+                    "url": "/s3/image.jpg",
+                    "ordering": 0,
+                }
+            ],
+        },
+        context={"seller": seller},
+    )
+
+    assert serializer.is_valid(), serializer.errors
+
+    product = serializer.save()
+
+    assert product.slug == "iphone-1"
 
 
 @pytest.mark.django_db
@@ -204,6 +268,18 @@ def test_product_response_serializer_returns_expected_payload():
         value="Apple",
     )
 
+    sku = Sku.objects.create(
+        product=product,
+        name="iPhone 128GB",
+        price=100000,
+        discount=10000,
+        cost_price=80000,
+        stock_quantity=10,
+        active_quantity=8,
+        reserved_quantity=2,
+        article="iphone-128gb",
+    )
+
     data = ProductResponseSerializer(product).data
 
     assert data["id"] == str(product.uuid)
@@ -237,4 +313,39 @@ def test_product_response_serializer_returns_expected_payload():
         }
     ]
 
-    assert data["skus"] == []
+    assert data["skus"][0]["id"] == str(sku.uuid)
+    assert data["skus"][0]["price"] == 100000
+    assert data["skus"][0]["discount"] == 10000
+    assert data["skus"][0]["cost_price"] == 80000
+    assert isinstance(data["skus"][0]["price"], int)
+
+
+@pytest.mark.django_db
+def test_product_list_item_serializer_returns_integer_min_price():
+    seller = SellerFactory()
+    category = CategoryFactory()
+
+    product = Product.objects.create(
+        seller=seller,
+        category=category,
+        title="iPhone",
+        slug="iphone-list",
+        description="desc",
+        status=ProductStatus.CREATED,
+    )
+    Sku.objects.create(
+        product=product,
+        name="iPhone 128GB",
+        price=100000,
+        discount=0,
+        cost_price=80000,
+        stock_quantity=10,
+        active_quantity=8,
+        reserved_quantity=2,
+        article="iphone-list-128gb",
+    )
+
+    data = ProductListItemSerializer(product).data
+
+    assert data["min_price"] == 100000
+    assert isinstance(data["min_price"], int)

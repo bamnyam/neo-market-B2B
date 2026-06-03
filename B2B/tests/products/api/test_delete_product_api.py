@@ -340,3 +340,89 @@ def test_deleted_product_not_in_seller_list(
     assert response.data["total_count"] == 1
     assert response.data["limit"] == 20
     assert response.data["offset"] == 0
+
+
+@pytest.mark.django_db
+def test_seller_list_filters_by_search(
+    auth_client,
+    seller,
+    category,
+):
+    matched_product = Product.objects.create(
+        seller=seller,
+        category=category,
+        title="Searchable iPhone",
+        slug="searchable-iphone",
+        description="desc",
+        deleted=False,
+    )
+    unmatched_product = Product.objects.create(
+        seller=seller,
+        category=category,
+        title="Pixel",
+        slug="pixel",
+        description="desc",
+        deleted=False,
+    )
+
+    response = auth_client.get(
+        "/api/v1/products",
+        {"search": "iphone"},
+        format="json",
+    )
+
+    assert response.status_code == 200, response.data
+
+    product_ids = [item["id"] for item in response.data["items"]]
+
+    assert product_ids == [str(matched_product.uuid)]
+    assert str(unmatched_product.uuid) not in product_ids
+    assert response.data["total_count"] == 1
+
+
+@pytest.mark.django_db
+def test_seller_list_invalid_status_returns_400(auth_client):
+    response = auth_client.get(
+        "/api/v1/products",
+        {"status": "INVALID"},
+        format="json",
+    )
+
+    assert response.status_code == 400
+    assert response.data == {
+        "code": "INVALID_REQUEST",
+        "message": "status must be a valid ProductStatus",
+        "field": "status",
+    }
+
+
+@pytest.mark.django_db
+def test_seller_list_invalid_limit_returns_400(auth_client):
+    response = auth_client.get(
+        "/api/v1/products",
+        {"limit": "0"},
+        format="json",
+    )
+
+    assert response.status_code == 400
+    assert response.data == {
+        "code": "INVALID_REQUEST",
+        "message": "limit must be between 1 and 100",
+        "field": "limit",
+    }
+
+
+@pytest.mark.django_db
+def test_seller_list_owner_query_param_returns_400(auth_client):
+    response = auth_client.get(
+        "/api/v1/products",
+        {"seller_id": str(uuid.uuid4())},
+        format="json",
+    )
+
+    assert response.status_code == 400
+    assert response.data == {
+        "code": "INVALID_REQUEST",
+        "message": "seller_id is not allowed",
+        "field": "seller_id",
+    }
