@@ -1,9 +1,11 @@
 from dataclasses import dataclass
 
 from django.db import transaction
+from django.utils import timezone
 
 from app.skus.integration.sku_events import SkuEventsClient
 from app.skus.models import ReserveOperation, Sku, UnreserveOperation
+from app.products.models import ProductStatus
 
 
 @dataclass(frozen=True)
@@ -25,6 +27,7 @@ class ReserveService:
         self,
         *,
         idempotency_key,
+        order_id,
         items,
     ):
         operation = ReserveOperation.objects.filter(
@@ -44,7 +47,6 @@ class ReserveService:
         if failed_items:
             raise ReserveConflictError(failed_items=failed_items)
 
-        response_items = []
         out_of_stock_skus = []
 
         for sku_uuid, quantity in requested_by_uuid.items():
@@ -60,24 +62,18 @@ class ReserveService:
                 ]
             )
 
-            response_items.append(
-                {
-                    "sku_id": str(sku.uuid),
-                    "reserved_quantity": quantity,
-                    "remaining_stock": sku.active_quantity,
-                }
-            )
-
             if sku.active_quantity == 0:
                 out_of_stock_skus.append(sku)
 
         result = {
-            "reserved": True,
-            "items": response_items,
+            "order_id": str(order_id),
+            "status": "RESERVED",
+            "reserved_at": self._now_iso(),
         }
 
         ReserveOperation.objects.create(
             idempotency_key=idempotency_key,
+            order_id=order_id,
             result=result,
         )
 
@@ -122,7 +118,9 @@ class ReserveService:
             )
 
         result = {
-            "ok": True,
+            "order_id": str(order_id),
+            "status": "UNRESERVED",
+            "processed_at": self._now_iso(),
         }
 
         UnreserveOperation.objects.create(
@@ -162,6 +160,20 @@ class ReserveService:
         for sku_uuid, quantity in requested_by_uuid.items():
             sku = locked_skus.get(sku_uuid)
             available = sku.active_quantity if sku is not None else 0
+
+            if sku is not None and sku.product.status in (
+                ProductStatus.BLOCKED,
+                ProductStatus.HARD_BLOCKED,
+            ):
+                failed_items.append(
+                    {
+                        "sku_id": str(sku_uuid),
+                        "requested": quantity,
+                        "available": available,
+                        "reason": "PRODUCT_BLOCKED",
+                    }
+                )
+                continue
 
             if sku is None or available < quantity:
                 failed_items.append(
@@ -203,3 +215,6 @@ class ReserveService:
     def _emit_out_of_stock_events(self, skus):
         for sku in skus:
             self.sku_events_client.emit_sku_out_of_stock(sku)
+
+    def _now_iso(self):
+        return timezone.now().isoformat().replace("+00:00", "Z")

@@ -12,6 +12,8 @@ class ReserveOperation(models.Model):
 
     result = models.JSONField()
 
+    order_id = models.UUIDField()
+
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

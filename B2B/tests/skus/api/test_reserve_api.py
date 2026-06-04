@@ -80,10 +80,13 @@ def test_reserve_all_skus_succeeds(
         active_quantity=5,
     )
 
+    order_id = str(uuid.uuid4())
+
     response = client.post(
-        "/api/v1/reserve",
+        "/api/v1/inventory/reserve",
         {
             "idempotency_key": str(uuid.uuid4()),
+            "order_id": order_id,
             "items": [
                 {
                     "sku_id": str(first_sku.uuid),
@@ -99,21 +102,9 @@ def test_reserve_all_skus_succeeds(
     )
 
     assert response.status_code == 200, response.data
-    assert response.data == {
-        "reserved": True,
-        "items": [
-            {
-                "sku_id": str(first_sku.uuid),
-                "reserved_quantity": 2,
-                "remaining_stock": 8,
-            },
-            {
-                "sku_id": str(second_sku.uuid),
-                "reserved_quantity": 1,
-                "remaining_stock": 4,
-            },
-        ],
-    }
+    assert response.data["order_id"] == order_id
+    assert response.data["status"] == "RESERVED"
+    assert response.data["reserved_at"].endswith("Z")
 
     first_sku.refresh_from_db()
     second_sku.refresh_from_db()
@@ -148,9 +139,10 @@ def test_partial_insufficient_stock_returns_409_all_rollback(
     )
 
     response = client.post(
-        "/api/v1/reserve",
+        "/api/v1/inventory/reserve",
         {
             "idempotency_key": str(uuid.uuid4()),
+            "order_id": str(uuid.uuid4()),
             "items": [
                 {
                     "sku_id": str(available_sku.uuid),
@@ -167,15 +159,18 @@ def test_partial_insufficient_stock_returns_409_all_rollback(
 
     assert response.status_code == 409, response.data
     assert response.data == {
-        "reserved": False,
-        "failed_items": [
-            {
-                "sku_id": str(insufficient_sku.uuid),
-                "requested": 5,
-                "available": 3,
-                "reason": "INSUFFICIENT_STOCK",
-            }
-        ],
+        "code": "CONFLICT",
+        "message": "Unable to reserve inventory",
+        "details": {
+            "failed_items": [
+                {
+                    "sku_id": str(insufficient_sku.uuid),
+                    "requested": 5,
+                    "available": 3,
+                    "reason": "INSUFFICIENT_STOCK",
+                }
+            ],
+        },
     }
 
     available_sku.refresh_from_db()
@@ -199,8 +194,10 @@ def test_idempotent_reserve_returns_200_without_double_deduction(
         active_quantity=4,
     )
     idempotency_key = str(uuid.uuid4())
+    order_id = str(uuid.uuid4())
     payload = {
         "idempotency_key": idempotency_key,
+        "order_id": order_id,
         "items": [
             {
                 "sku_id": str(sku.uuid),
@@ -210,12 +207,12 @@ def test_idempotent_reserve_returns_200_without_double_deduction(
     }
 
     first_response = client.post(
-        "/api/v1/reserve",
+        "/api/v1/inventory/reserve",
         payload,
         format="json",
     )
     second_response = client.post(
-        "/api/v1/reserve",
+        "/api/v1/inventory/reserve",
         payload,
         format="json",
     )
@@ -245,9 +242,10 @@ def test_sku_out_of_stock_event_emitted(
     )
 
     response = client.post(
-        "/api/v1/reserve",
+        "/api/v1/inventory/reserve",
         {
             "idempotency_key": str(uuid.uuid4()),
+            "order_id": str(uuid.uuid4()),
             "items": [
                 {
                     "sku_id": str(sku.uuid),
@@ -289,10 +287,12 @@ def test_unreserve_restores_quantities(
         reserved_quantity=2,
     )
 
+    order_id = str(uuid.uuid4())
+
     response = client.post(
-        "/api/v1/unreserve",
+        "/api/v1/inventory/unreserve",
         {
-            "order_id": str(uuid.uuid4()),
+            "order_id": order_id,
             "items": [
                 {
                     "sku_id": str(sku.uuid),
@@ -304,9 +304,9 @@ def test_unreserve_restores_quantities(
     )
 
     assert response.status_code == 200, response.data
-    assert response.data == {
-        "ok": True,
-    }
+    assert response.data["order_id"] == order_id
+    assert response.data["status"] == "UNRESERVED"
+    assert response.data["processed_at"].endswith("Z")
 
     sku.refresh_from_db()
 

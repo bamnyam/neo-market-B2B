@@ -9,12 +9,12 @@ from app.skus.api.controller import (
 
 urlpatterns = [
     path(
-        "reserve",
+        "inventory/reserve",
         ReserveController.as_view(),
         name="reserve-sku",
     ),
     path(
-        "unreserve",
+        "inventory/unreserve",
         UnreserveController.as_view(),
         name="unreserve-sku",
     ),

@@ -165,13 +165,17 @@ class ReserveController(APIView):
         try:
             result = self.service_class().reserve(
                 idempotency_key=serializer.validated_data["idempotency_key"],
+                order_id=serializer.validated_data["order_id"],
                 items=serializer.validated_data["items"],
             )
         except ReserveConflictError as error:
             return Response(
                 {
-                    "reserved": False,
-                    "failed_items": error.failed_items,
+                    "code": "CONFLICT",
+                    "message": "Unable to reserve inventory",
+                    "details": {
+                        "failed_items": error.failed_items,
+                    },
                 },
                 status=status.HTTP_409_CONFLICT,
             )
@@ -209,8 +213,11 @@ class UnreserveController(APIView):
         except UnreserveConflictError as error:
             return Response(
                 {
-                    "ok": False,
-                    "failed_items": error.failed_items,
+                    "code": "CONFLICT",
+                    "message": "Unable to unreserve inventory",
+                    "details": {
+                        "failed_items": error.failed_items,
+                    },
                 },
                 status=status.HTTP_409_CONFLICT,
             )
