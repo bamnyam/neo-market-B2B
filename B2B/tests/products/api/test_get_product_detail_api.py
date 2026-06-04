@@ -102,7 +102,14 @@ def make_product(
         name="Цвет",
         value="Чёрный",
     )
-    return product, sku, product_image, product_characteristic, sku_image, sku_characteristic
+    return (
+        product,
+        sku,
+        product_image,
+        product_characteristic,
+        sku_image,
+        sku_characteristic,
+    )
 
 
 @pytest.mark.django_db

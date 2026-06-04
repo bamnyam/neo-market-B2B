@@ -7,4 +7,5 @@ class IsSellerAuthenticated(BasePermission):
             "seller",
             "moderation_service",
             "catalog_service",
+            "inventory_service",
         }
