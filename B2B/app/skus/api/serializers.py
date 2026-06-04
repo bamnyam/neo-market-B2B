@@ -155,3 +155,29 @@ class SkuResponseSerializer(serializers.Serializer):
     characteristics = SkuCharacteristicResponseSerializer(
         many=True,
     )
+
+
+class ReserveItemSerializer(serializers.Serializer):
+    sku_id = serializers.UUIDField()
+    quantity = serializers.IntegerField(min_value=1)
+
+
+class ReserveRequestSerializer(serializers.Serializer):
+    idempotency_key = serializers.UUIDField()
+    items = ReserveItemSerializer(
+        many=True,
+        allow_empty=False,
+    )
+
+
+class UnreserveItemSerializer(serializers.Serializer):
+    sku_id = serializers.UUIDField()
+    quantity = serializers.IntegerField(min_value=1)
+
+
+class UnreserveRequestSerializer(serializers.Serializer):
+    order_id = serializers.UUIDField()
+    items = UnreserveItemSerializer(
+        many=True,
+        allow_empty=False,
+    )

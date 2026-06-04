@@ -75,3 +75,18 @@ class SellerOrModerationAuthentication(SellerJWTAuthentication):
             request.access_mode = "seller"
 
         return result
+
+
+class B2CServiceAuthentication(BaseAuthentication):
+    SERVICE_KEY_HEADER = "X-Service-Key"
+
+    def authenticate(self, request):
+        service_key = request.headers.get(self.SERVICE_KEY_HEADER)
+
+        if not service_key:
+            return None
+
+        if service_key != settings.B2B_TO_B2C_KEY:
+            raise AuthenticationFailed("Invalid service key")
+
+        return ServicePrincipal("b2c"), {"service": "b2c"}

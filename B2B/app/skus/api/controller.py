@@ -3,14 +3,22 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from app.common.authentication import SellerJWTAuthentication
+from app.common.authentication import B2CServiceAuthentication
 from app.common.permissions import IsSellerAuthenticated
 from app.skus.api.serializers import (
+    ReserveRequestSerializer,
     SkuCreateSerializer,
     SkuResponseSerializer,
     SkuUpdateSerializer,
+    UnreserveRequestSerializer,
 )
 from app.skus.errors.sku_create_error import SkuCreateError
 from app.skus.errors.sku_update_error import SkuUpdateError
+from app.skus.services.reserve_service import (
+    ReserveConflictError,
+    ReserveService,
+    UnreserveConflictError,
+)
 from app.skus.services.sku_create_service import SkuCreateService
 from app.skus.services.sku_update_service import SkuUpdateService
 
@@ -105,7 +113,9 @@ class SkusController(APIView):
                 "product_id": sku.product.uuid,
                 "name": sku.name,
                 "price": int(sku.price),
-                "cost_price": (int(sku.cost_price) if sku.cost_price is not None else None),
+                "cost_price": (
+                    int(sku.cost_price) if sku.cost_price is not None else None
+                ),
                 "discount": int(sku.discount),
                 "stock_quantity": sku.stock_quantity,
                 "active_quantity": sku.active_quantity,
@@ -131,3 +141,81 @@ class SkusController(APIView):
                 ],
             }
         ).data
+
+
+class ReserveController(APIView):
+    authentication_classes = [B2CServiceAuthentication]
+    permission_classes = [IsSellerAuthenticated]
+
+    service_class = ReserveService
+
+    def post(self, request):
+        serializer = ReserveRequestSerializer(data=request.data)
+
+        if not serializer.is_valid():
+            return Response(
+                {
+                    "code": "VALIDATION_ERROR",
+                    "message": "Invalid reserve request",
+                    "details": serializer.errors,
+                },
+                status=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            )
+
+        try:
+            result = self.service_class().reserve(
+                idempotency_key=serializer.validated_data["idempotency_key"],
+                items=serializer.validated_data["items"],
+            )
+        except ReserveConflictError as error:
+            return Response(
+                {
+                    "reserved": False,
+                    "failed_items": error.failed_items,
+                },
+                status=status.HTTP_409_CONFLICT,
+            )
+
+        return Response(
+            result,
+            status=status.HTTP_200_OK,
+        )
+
+
+class UnreserveController(APIView):
+    authentication_classes = [B2CServiceAuthentication]
+    permission_classes = [IsSellerAuthenticated]
+
+    service_class = ReserveService
+
+    def post(self, request):
+        serializer = UnreserveRequestSerializer(data=request.data)
+
+        if not serializer.is_valid():
+            return Response(
+                {
+                    "code": "VALIDATION_ERROR",
+                    "message": "Invalid unreserve request",
+                    "details": serializer.errors,
+                },
+                status=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            )
+
+        try:
+            result = self.service_class().unreserve(
+                order_id=serializer.validated_data["order_id"],
+                items=serializer.validated_data["items"],
+            )
+        except UnreserveConflictError as error:
+            return Response(
+                {
+                    "ok": False,
+                    "failed_items": error.failed_items,
+                },
+                status=status.HTTP_409_CONFLICT,
+            )
+
+        return Response(
+            result,
+            status=status.HTTP_200_OK,
+        )
