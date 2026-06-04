@@ -64,16 +64,17 @@ class SellerOrModerationAuthentication(SellerJWTAuthentication):
         service_key = request.headers.get(self.SERVICE_KEY_HEADER)
 
         if service_key:
-            if service_key != settings.B2B_TO_MOD_KEY:
-                raise AuthenticationFailed("Invalid service key")
+            if service_key == settings.B2B_TO_MOD_KEY:
+                request.access_mode = "moderation_service"
+                return ServicePrincipal("moderation"), {"service": "moderation"}
 
-            request.access_mode = "moderation_service"
-            return ServicePrincipal("moderation"), {"service": "moderation"}
+            if service_key == settings.B2B_TO_B2C_KEY:
+                request.access_mode = "catalog_service"
+                return ServicePrincipal("b2c"), {"service": "b2c"}
+
+            raise AuthenticationFailed("Invalid service key")
 
         result = super().authenticate(request)
-
-        if result is not None:
-            request.access_mode = "seller"
 
         return result
 

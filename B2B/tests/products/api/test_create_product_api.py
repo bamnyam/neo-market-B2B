@@ -120,6 +120,31 @@ def test_create_product_returns_201_with_created_status(
 
 
 @pytest.mark.django_db
+def test_create_product_generates_slug_when_missing(
+    auth_client,
+    category,
+):
+    response = auth_client.post(
+        "/api/v1/products",
+        {
+            "title": "iPhone 15",
+            "description": "desc",
+            "category_id": str(category.uuid),
+            "images": [
+                {
+                    "url": "/s3/image.jpg",
+                    "ordering": 0,
+                }
+            ],
+        },
+        format="json",
+    )
+
+    assert response.status_code == 201, response.data
+    assert response.data["slug"] == "iphone-15"
+
+
+@pytest.mark.django_db
 def test_create_product_without_images_returns_400(
     auth_client,
     category,
