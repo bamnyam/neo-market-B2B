@@ -23,6 +23,7 @@ class SellerJWTAuthentication(BaseAuthentication):
         token = auth_header.removeprefix(self.AUTH_HEADER_PREFIX).strip()
         payload = self._decode_token(token)
         seller = self._get_seller_from_payload(payload)
+        request.access_mode = "seller"
 
         return seller, payload
 
@@ -88,5 +89,7 @@ class B2CServiceAuthentication(BaseAuthentication):
 
         if service_key != settings.B2B_TO_B2C_KEY:
             raise AuthenticationFailed("Invalid service key")
+
+        request.access_mode = "inventory_service"
 
         return ServicePrincipal("b2c"), {"service": "b2c"}
