@@ -11,9 +11,7 @@ logger = logging.getLogger(__name__)
 class B2CProductEventsClient:
     def emit_product_blocked(self, product):
         sku_ids = [
-            str(sku.uuid)
-            for sku in product.skus.all()
-            if sku.active_quantity > 0
+            str(sku.uuid) for sku in product.skus.all() if sku.active_quantity > 0
         ]
 
         if not sku_ids:

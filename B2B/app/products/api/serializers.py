@@ -68,10 +68,7 @@ class ModerationEventSerializer(serializers.Serializer):
 
         if unknown_fields:
             raise serializers.ValidationError(
-                {
-                    field: "Unknown field."
-                    for field in sorted(unknown_fields)
-                }
+                {field: "Unknown field." for field in sorted(unknown_fields)}
             )
 
         return super().to_internal_value(data)
@@ -171,9 +168,7 @@ class ProductCreateSerializer(serializers.Serializer):
         slug = validated_data.get("slug")
 
         if not slug:
-            validated_data["slug"] = self._generate_unique_slug(
-                validated_data["title"]
-            )
+            validated_data["slug"] = self._generate_unique_slug(validated_data["title"])
 
         category = Category.objects.get(uuid=category_uuid)
 

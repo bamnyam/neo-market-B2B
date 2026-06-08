@@ -328,8 +328,7 @@ class ProductsController(APIView):
             )
 
         products = self._filter_visible_catalog(
-            Product.objects.select_related("seller", "category")
-            .prefetch_related(
+            Product.objects.select_related("seller", "category").prefetch_related(
                 "images",
                 Prefetch(
                     "skus",
