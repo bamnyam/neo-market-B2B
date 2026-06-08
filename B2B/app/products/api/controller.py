@@ -12,6 +12,7 @@ from app.products.api.serializers import (
     ProductCreateSerializer,
     ProductDetailSerializer,
     ProductListItemSerializer,
+    ModerationEventSerializer,
     ProductPublicDetailSerializer,
     ProductPublicListItemSerializer,
     ProductResponseSerializer,
@@ -19,6 +20,7 @@ from app.products.api.serializers import (
 )
 from app.products.errors.product_delete_error import ProductDeleteError
 from app.products.models import Product, ProductStatus
+from app.products.services.moderation_event_service import ModerationEventService
 from app.products.services.product_delete_service import (
     ProductDeleteService,
 )
@@ -326,8 +328,7 @@ class ProductsController(APIView):
             )
 
         products = self._filter_visible_catalog(
-            Product.objects.select_related("seller", "category")
-            .prefetch_related(
+            Product.objects.select_related("seller", "category").prefetch_related(
                 "images",
                 Prefetch(
                     "skus",
@@ -473,3 +474,47 @@ class ProductsController(APIView):
     def _require_seller_access(self, request):
         if getattr(request, "access_mode", None) != "seller":
             raise PermissionDenied("Seller authorization required")
+
+
+class ModerationEventsController(APIView):
+    authentication_classes = [SellerOrModerationAuthentication]
+    permission_classes = [IsSellerAuthenticated]
+
+    service_class = ModerationEventService
+
+    def post(self, request):
+        if getattr(request, "access_mode", None) != "moderation_service":
+            raise PermissionDenied("Moderation service authorization required")
+
+        serializer = ModerationEventSerializer(data=request.data)
+
+        if not serializer.is_valid():
+            field, errors = next(iter(serializer.errors.items()))
+            message = errors[0] if isinstance(errors, list) else errors
+
+            return Response(
+                {
+                    "code": "INVALID_REQUEST",
+                    "message": str(message),
+                    "field": field,
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            self.service_class().apply(
+                {
+                    **serializer.validated_data,
+                    "sender_service": request.user.name,
+                }
+            )
+        except Product.DoesNotExist:
+            return Response(
+                {
+                    "code": "NOT_FOUND",
+                    "message": "Product not found",
+                },
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        return Response(status=status.HTTP_204_NO_CONTENT)

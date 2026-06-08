@@ -21,6 +21,76 @@ class ProductCharacteristicCreateSerializer(serializers.Serializer):
     value = serializers.CharField(max_length=255)
 
 
+class ModerationFieldReportSerializer(serializers.Serializer):
+    field_name = serializers.CharField(max_length=32)
+    sku_id = serializers.UUIDField(
+        required=False,
+        allow_null=True,
+    )
+    comment = serializers.CharField()
+
+
+class ModerationEventSerializer(serializers.Serializer):
+    idempotency_key = serializers.UUIDField()
+    product_id = serializers.UUIDField()
+    event_type = serializers.ChoiceField(
+        choices=[
+            ProductStatus.MODERATED,
+            ProductStatus.BLOCKED,
+        ],
+    )
+    occurred_at = serializers.DateTimeField()
+    moderator_id = serializers.UUIDField(
+        required=False,
+        allow_null=True,
+    )
+    hard_block = serializers.BooleanField(
+        required=False,
+        default=False,
+    )
+    blocking_reason_id = serializers.UUIDField(
+        required=False,
+        allow_null=True,
+    )
+    moderator_comment = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        allow_null=True,
+    )
+    field_reports = ModerationFieldReportSerializer(
+        many=True,
+        required=False,
+        allow_null=True,
+    )
+
+    def to_internal_value(self, data):
+        unknown_fields = set(data) - set(self.fields)
+
+        if unknown_fields:
+            raise serializers.ValidationError(
+                {field: "Unknown field." for field in sorted(unknown_fields)}
+            )
+
+        return super().to_internal_value(data)
+
+    def validate(self, attrs):
+        if attrs["event_type"] == ProductStatus.MODERATED:
+            attrs["hard_block"] = False
+            attrs["field_reports"] = []
+            return attrs
+
+        if attrs.get("blocking_reason_id") is None:
+            raise serializers.ValidationError(
+                {
+                    "blocking_reason_id": "blocking_reason_id is required for BLOCKED",
+                }
+            )
+
+        attrs["field_reports"] = attrs.get("field_reports") or []
+
+        return attrs
+
+
 class ProductCreateSerializer(serializers.Serializer):
     title = serializers.CharField(
         min_length=1,
@@ -98,9 +168,7 @@ class ProductCreateSerializer(serializers.Serializer):
         slug = validated_data.get("slug")
 
         if not slug:
-            validated_data["slug"] = self._generate_unique_slug(
-                validated_data["title"]
-            )
+            validated_data["slug"] = self._generate_unique_slug(validated_data["title"])
 
         category = Category.objects.get(uuid=category_uuid)
 
