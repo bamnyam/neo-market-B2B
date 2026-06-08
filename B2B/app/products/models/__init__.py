@@ -4,6 +4,7 @@ from app.products.models.product_field_reports import ProductFieldReport
 from app.products.models.product_status import ProductStatus
 from app.products.models.products import Product
 from app.products.models.products_status_history import ProductStatusHistory
+from app.products.models.processed_moderation_events import ProcessedModerationEvent
 
 
 __all__ = [
@@ -13,4 +14,5 @@ __all__ = [
     "ProductStatus",
     "Product",
     "ProductStatusHistory",
+    "ProcessedModerationEvent",
 ]

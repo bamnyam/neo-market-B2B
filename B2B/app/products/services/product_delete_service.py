@@ -3,10 +3,11 @@ from dataclasses import dataclass
 from django.db import transaction
 
 from app.products.errors.product_already_deleted_error import ProductAlreadyDeletedError
+from app.products.errors.product_hard_blocked_error import ProductHardBlockedError
 from app.products.errors.product_not_found_error import ProductNotFoundError
 from app.products.errors.product_not_owner_error import ProductNotOwnerError
 from app.products.integration.product_events import ProductEventsClient
-from app.products.models import Product
+from app.products.models import Product, ProductStatus
 
 
 @dataclass(frozen=True)
@@ -42,6 +43,9 @@ class ProductDeleteService:
 
         if product.deleted:
             raise ProductAlreadyDeletedError
+
+        if product.status == ProductStatus.HARD_BLOCKED:
+            raise ProductHardBlockedError
 
         product.deleted = True
         product.save(update_fields=["deleted", "updated_at"])
