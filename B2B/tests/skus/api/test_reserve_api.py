@@ -262,17 +262,21 @@ def test_sku_out_of_stock_event_emitted(
 
     call = requests_post.call_args
 
-    assert call.args[0] == f"{settings.B2C_URL}/api/v1/events/product"
+    assert call.args[0] == f"{settings.B2C_URL}/api/v1/b2b/events"
     assert call.kwargs["headers"] == {
         "X-Service-Key": settings.B2B_TO_B2C_KEY,
     }
 
     payload = call.kwargs["json"]
 
-    assert payload["event"] == "SKU_OUT_OF_STOCK"
-    assert payload["sku_id"] == str(sku.uuid)
-    assert payload["product_id"] == str(product.uuid)
-    assert payload["date"].endswith("Z")
+    assert payload["event_type"] == "SKU_OUT_OF_STOCK"
+    assert payload["idempotency_key"]
+    assert payload["occurred_at"].endswith("Z")
+    assert payload["payload"] == {
+        "product_id": str(product.uuid),
+        "sku_id": str(sku.uuid),
+        "available_quantity": 0,
+    }
 
 
 @pytest.mark.django_db
