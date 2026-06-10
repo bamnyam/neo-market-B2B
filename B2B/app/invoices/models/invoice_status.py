@@ -2,6 +2,7 @@ from django.db import models
 
 
 class InvoiceStatus(models.TextChoices):
-    CREATED = "created", "Created"
-    ACCEPTED = "accepted", "Accepted"
-    REJECTED = "rejected", "Rejected"
+    CREATED = "CREATED", "Created"
+    PARTIALLY_ACCEPTED = "PARTIALLY_ACCEPTED", "Partially accepted"
+    ACCEPTED = "ACCEPTED", "Accepted"
+    CANCELLED = "CANCELLED", "Cancelled"
