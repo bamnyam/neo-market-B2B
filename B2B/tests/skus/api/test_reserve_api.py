@@ -6,7 +6,7 @@ from django.conf import settings
 from rest_framework.test import APIClient
 
 from app.products.models import Product, ProductStatus
-from app.skus.models import ReserveOperation, Sku
+from app.skus.models import FulfillOperation, ReserveOperation, Sku
 from tests.factories.category_factory import CategoryFactory
 from tests.factories.seller_factory import SellerFactory
 
@@ -317,3 +317,147 @@ def test_unreserve_restores_quantities(
     assert sku.active_quantity == 10
     assert sku.reserved_quantity == 0
     assert sku.active_quantity + sku.reserved_quantity == sku.stock_quantity
+
+
+@pytest.mark.django_db
+def test_fulfill_decreases_reserved_quantity(
+    client,
+    product,
+):
+    sku = make_sku(
+        product,
+        article="iphone-15-black-fulfill-happy",
+        active_quantity=8,
+        reserved_quantity=3,
+    )
+
+    response = client.post(
+        "/api/v1/fulfill",
+        {
+            "order_id": str(uuid.uuid4()),
+            "items": [
+                {
+                    "sku_id": str(sku.uuid),
+                    "quantity": 2,
+                }
+            ],
+        },
+        format="json",
+    )
+
+    assert response.status_code == 200, response.data
+    assert response.data == {"ok": True}
+
+    sku.refresh_from_db()
+
+    assert sku.reserved_quantity == 1
+
+
+@pytest.mark.django_db
+def test_active_quantity_unchanged(
+    client,
+    product,
+):
+    sku = make_sku(
+        product,
+        article="iphone-15-black-fulfill-active-unchanged",
+        active_quantity=8,
+        reserved_quantity=3,
+    )
+
+    response = client.post(
+        "/api/v1/fulfill",
+        {
+            "order_id": str(uuid.uuid4()),
+            "items": [
+                {
+                    "sku_id": str(sku.uuid),
+                    "quantity": 2,
+                }
+            ],
+        },
+        format="json",
+    )
+
+    assert response.status_code == 200, response.data
+
+    sku.refresh_from_db()
+
+    assert sku.active_quantity == 8
+
+
+@pytest.mark.django_db
+def test_idempotent_fulfill_no_double_deduction(
+    client,
+    product,
+):
+    sku = make_sku(
+        product,
+        article="iphone-15-black-fulfill-idempotent",
+        active_quantity=8,
+        reserved_quantity=3,
+    )
+    payload = {
+        "order_id": str(uuid.uuid4()),
+        "items": [
+            {
+                "sku_id": str(sku.uuid),
+                "quantity": 2,
+            }
+        ],
+    }
+
+    first_response = client.post(
+        "/api/v1/fulfill",
+        payload,
+        format="json",
+    )
+    second_response = client.post(
+        "/api/v1/fulfill",
+        payload,
+        format="json",
+    )
+
+    assert first_response.status_code == 200, first_response.data
+    assert second_response.status_code == 200, second_response.data
+    assert second_response.data == first_response.data == {"ok": True}
+
+    sku.refresh_from_db()
+
+    assert sku.active_quantity == 8
+    assert sku.reserved_quantity == 1
+    assert FulfillOperation.objects.count() == 1
+
+
+@pytest.mark.django_db
+def test_missing_service_key_returns_401(
+    product,
+):
+    client = APIClient()
+    sku = make_sku(
+        product,
+        article="iphone-15-black-fulfill-missing-key",
+        active_quantity=8,
+        reserved_quantity=3,
+    )
+
+    response = client.post(
+        "/api/v1/fulfill",
+        {
+            "order_id": str(uuid.uuid4()),
+            "items": [
+                {
+                    "sku_id": str(sku.uuid),
+                    "quantity": 2,
+                }
+            ],
+        },
+        format="json",
+    )
+
+    assert response.status_code == 401, response.data
+
+    sku.refresh_from_db()
+
+    assert sku.active_quantity == 8
+    assert sku.reserved_quantity == 3

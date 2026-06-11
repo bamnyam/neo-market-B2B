@@ -6,6 +6,7 @@ from app.common.authentication import SellerJWTAuthentication
 from app.common.authentication import B2CServiceAuthentication
 from app.common.permissions import IsSellerAuthenticated
 from app.skus.api.serializers import (
+    FulfillRequestSerializer,
     ReserveRequestSerializer,
     SkuCreateSerializer,
     SkuResponseSerializer,
@@ -15,6 +16,7 @@ from app.skus.api.serializers import (
 from app.skus.errors.sku_create_error import SkuCreateError
 from app.skus.errors.sku_update_error import SkuUpdateError
 from app.skus.services.reserve_service import (
+    FulfillConflictError,
     ReserveConflictError,
     ReserveService,
     UnreserveConflictError,
@@ -215,6 +217,48 @@ class UnreserveController(APIView):
                 {
                     "code": "CONFLICT",
                     "message": "Unable to unreserve inventory",
+                    "details": {
+                        "failed_items": error.failed_items,
+                    },
+                },
+                status=status.HTTP_409_CONFLICT,
+            )
+
+        return Response(
+            result,
+            status=status.HTTP_200_OK,
+        )
+
+
+class FulfillController(APIView):
+    authentication_classes = [B2CServiceAuthentication]
+    permission_classes = [IsSellerAuthenticated]
+
+    service_class = ReserveService
+
+    def post(self, request):
+        serializer = FulfillRequestSerializer(data=request.data)
+
+        if not serializer.is_valid():
+            return Response(
+                {
+                    "code": "VALIDATION_ERROR",
+                    "message": "Invalid fulfill request",
+                    "details": serializer.errors,
+                },
+                status=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            )
+
+        try:
+            result = self.service_class().fulfill(
+                order_id=serializer.validated_data["order_id"],
+                items=serializer.validated_data["items"],
+            )
+        except FulfillConflictError as error:
+            return Response(
+                {
+                    "code": "CONFLICT",
+                    "message": "Unable to fulfill inventory",
                     "details": {
                         "failed_items": error.failed_items,
                     },

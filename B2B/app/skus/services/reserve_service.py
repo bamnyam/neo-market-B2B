@@ -4,7 +4,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from app.skus.integration.sku_events import SkuEventsClient
-from app.skus.models import ReserveOperation, Sku, UnreserveOperation
+from app.skus.models import FulfillOperation, ReserveOperation, Sku, UnreserveOperation
 from app.products.models import ProductStatus
 
 
@@ -15,6 +15,11 @@ class ReserveConflictError(Exception):
 
 @dataclass(frozen=True)
 class UnreserveConflictError(Exception):
+    failed_items: list[dict]
+
+
+@dataclass(frozen=True)
+class FulfillConflictError(Exception):
     failed_items: list[dict]
 
 
@@ -130,6 +135,43 @@ class ReserveService:
 
         return result
 
+    @transaction.atomic
+    def fulfill(
+        self,
+        *,
+        order_id,
+        items,
+    ):
+        operation, created = FulfillOperation.objects.get_or_create(
+            order_id=order_id,
+            defaults={"result": {"ok": True}},
+        )
+
+        if not created:
+            return operation.result
+
+        requested_by_uuid = self._collapse_items(items)
+        locked_skus = self._lock_skus(requested_by_uuid)
+        failed_items = self._get_fulfill_failures(
+            requested_by_uuid,
+            locked_skus,
+        )
+
+        if failed_items:
+            raise FulfillConflictError(failed_items=failed_items)
+
+        for sku_uuid, quantity in requested_by_uuid.items():
+            sku = locked_skus[sku_uuid]
+            sku.reserved_quantity -= quantity
+            sku.save(
+                update_fields=[
+                    "reserved_quantity",
+                    "updated_at",
+                ]
+            )
+
+        return operation.result
+
     def _collapse_items(self, items):
         requested_by_uuid = {}
 
@@ -190,6 +232,29 @@ class ReserveService:
         return failed_items
 
     def _get_unreserve_failures(
+        self,
+        requested_by_uuid,
+        locked_skus,
+    ):
+        failed_items = []
+
+        for sku_uuid, quantity in requested_by_uuid.items():
+            sku = locked_skus.get(sku_uuid)
+            reserved = sku.reserved_quantity if sku is not None else 0
+
+            if sku is None or reserved < quantity:
+                failed_items.append(
+                    {
+                        "sku_id": str(sku_uuid),
+                        "requested": quantity,
+                        "reserved": reserved,
+                        "reason": "INSUFFICIENT_RESERVED",
+                    }
+                )
+
+        return failed_items
+
+    def _get_fulfill_failures(
         self,
         requested_by_uuid,
         locked_skus,
