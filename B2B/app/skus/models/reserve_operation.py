@@ -32,3 +32,17 @@ class UnreserveOperation(models.Model):
 
     class Meta:
         db_table = "unreserve_operations"
+
+
+class FulfillOperation(models.Model):
+    order_id = models.UUIDField(
+        primary_key=True,
+        editable=False,
+    )
+
+    result = models.JSONField()
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "fulfill_operations"

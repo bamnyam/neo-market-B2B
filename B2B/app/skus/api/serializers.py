@@ -182,3 +182,16 @@ class UnreserveRequestSerializer(serializers.Serializer):
         many=True,
         allow_empty=False,
     )
+
+
+class FulfillItemSerializer(serializers.Serializer):
+    sku_id = serializers.UUIDField()
+    quantity = serializers.IntegerField(min_value=1)
+
+
+class FulfillRequestSerializer(serializers.Serializer):
+    order_id = serializers.UUIDField()
+    items = FulfillItemSerializer(
+        many=True,
+        allow_empty=False,
+    )
