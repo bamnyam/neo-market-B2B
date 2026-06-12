@@ -9,7 +9,10 @@ logger = logging.getLogger(__name__)
 
 
 class SkuEventsClient:
-    def emit_sku_out_of_stock(self, sku):
+    def emit_sku_out_of_stock(self, sku, *, available_quantity=None):
+        if available_quantity is None:
+            available_quantity = sku.active_quantity
+
         payload = {
             "event_type": "SKU_OUT_OF_STOCK",
             "idempotency_key": self._build_idempotency_key(
@@ -20,7 +23,7 @@ class SkuEventsClient:
             "payload": {
                 "product_id": str(sku.product.uuid),
                 "sku_id": str(sku.uuid),
-                "available_quantity": sku.active_quantity,
+                "available_quantity": available_quantity,
             },
         }
 
