@@ -331,10 +331,12 @@ def test_fulfill_decreases_reserved_quantity(
         reserved_quantity=3,
     )
 
+    order_id = str(uuid.uuid4())
+
     response = client.post(
-        "/api/v1/fulfill",
+        "/api/v1/inventory/fulfill",
         {
-            "order_id": str(uuid.uuid4()),
+            "order_id": order_id,
             "items": [
                 {
                     "sku_id": str(sku.uuid),
@@ -346,7 +348,9 @@ def test_fulfill_decreases_reserved_quantity(
     )
 
     assert response.status_code == 200, response.data
-    assert response.data == {"ok": True}
+    assert response.data["order_id"] == order_id
+    assert response.data["status"] == "FULFILLED"
+    assert response.data["processed_at"].endswith("Z")
 
     sku.refresh_from_db()
 
@@ -366,7 +370,7 @@ def test_active_quantity_unchanged(
     )
 
     response = client.post(
-        "/api/v1/fulfill",
+        "/api/v1/inventory/fulfill",
         {
             "order_id": str(uuid.uuid4()),
             "items": [
@@ -408,19 +412,22 @@ def test_idempotent_fulfill_no_double_deduction(
     }
 
     first_response = client.post(
-        "/api/v1/fulfill",
+        "/api/v1/inventory/fulfill",
         payload,
         format="json",
     )
     second_response = client.post(
-        "/api/v1/fulfill",
+        "/api/v1/inventory/fulfill",
         payload,
         format="json",
     )
 
     assert first_response.status_code == 200, first_response.data
     assert second_response.status_code == 200, second_response.data
-    assert second_response.data == first_response.data == {"ok": True}
+    assert first_response.data["order_id"] == payload["order_id"]
+    assert first_response.data["status"] == "FULFILLED"
+    assert first_response.data["processed_at"].endswith("Z")
+    assert second_response.data == first_response.data
 
     sku.refresh_from_db()
 
@@ -442,7 +449,7 @@ def test_missing_service_key_returns_401(
     )
 
     response = client.post(
-        "/api/v1/fulfill",
+        "/api/v1/inventory/fulfill",
         {
             "order_id": str(uuid.uuid4()),
             "items": [

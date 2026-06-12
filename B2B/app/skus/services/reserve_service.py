@@ -142,9 +142,15 @@ class ReserveService:
         order_id,
         items,
     ):
+        result = {
+            "order_id": str(order_id),
+            "status": "FULFILLED",
+            "processed_at": self._now_iso(),
+        }
+
         operation, created = FulfillOperation.objects.get_or_create(
             order_id=order_id,
-            defaults={"result": {"ok": True}},
+            defaults={"result": result},
         )
 
         if not created:

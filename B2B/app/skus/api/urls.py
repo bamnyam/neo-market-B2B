@@ -10,7 +10,7 @@ from app.skus.api.controller import (
 
 urlpatterns = [
     path(
-        "fulfill",
+        "inventory/fulfill",
         FulfillController.as_view(),
         name="fulfill-sku",
     ),
