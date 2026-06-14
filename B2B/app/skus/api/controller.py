@@ -14,6 +14,7 @@ from app.skus.api.serializers import (
     UnreserveRequestSerializer,
 )
 from app.skus.errors.sku_create_error import SkuCreateError
+from app.skus.errors.sku_delete_error import SkuDeleteError
 from app.skus.errors.sku_update_error import SkuUpdateError
 from app.skus.services.reserve_service import (
     FulfillConflictError,
@@ -22,6 +23,7 @@ from app.skus.services.reserve_service import (
     UnreserveConflictError,
 )
 from app.skus.services.sku_create_service import SkuCreateService
+from app.skus.services.sku_delete_service import SkuDeleteService
 from app.skus.services.sku_update_service import SkuUpdateService
 
 
@@ -30,6 +32,7 @@ class SkusController(APIView):
     permission_classes = [IsSellerAuthenticated]
 
     create_service_class = SkuCreateService
+    delete_service_class = SkuDeleteService
     update_service_class = SkuUpdateService
 
     def post(self, request):
@@ -101,6 +104,23 @@ class SkusController(APIView):
         )
 
     patch = put
+
+    def delete(self, request, id):
+        try:
+            self.delete_service_class().delete_sku(
+                sku_uuid=id,
+                seller=request.user,
+            )
+        except SkuDeleteError as error:
+            return Response(
+                {
+                    "code": error.code,
+                    "message": error.message,
+                },
+                status=error.status_code,
+            )
+
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
     def _serialize_sku(self, sku):
         sku = (

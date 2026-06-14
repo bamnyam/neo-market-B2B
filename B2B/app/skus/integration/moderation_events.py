@@ -27,6 +27,12 @@ class ModerationEventsClient:
             event_type="EDITED",
         )
 
+    def emit_product_deleted(self, product):
+        self._emit_event(
+            product=product,
+            event_type="DELETED",
+        )
+
     def _emit_event(
         self,
         *,
